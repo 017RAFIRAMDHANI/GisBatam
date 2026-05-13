@@ -2,7 +2,7 @@
   padding: 24px 32px;
   width: 100%;
   box-sizing: border-box;
-  background: #ffffff;
+  background: #f8fafc;
   min-height: 100%;
   font-family: "Inter", sans-serif;
   color: #2d3748;
@@ -212,7 +212,7 @@
   position: relative;
   background: #ffffff;
   transition: border-color 0.2s, box-shadow 0.2s;
-  height: 52px; /* Fixed height agar sejajar */
+  height: 52px;
   box-sizing: border-box;
 }
 
@@ -235,7 +235,7 @@
   left: 0;
   width: 100%;
   height: 100%;
-  opacity: 0; /* Sembunyikan select asli tapi tetap bisa diklik */
+  opacity: 0;
   cursor: pointer;
   z-index: 2;
 }
@@ -249,7 +249,6 @@
   align-items: center;
 }
 
-/* Icon chevron custom yang selaras dengan desain */
 .ig-filter-input svg {
   position: absolute;
   right: 16px;
@@ -337,9 +336,7 @@
 .ig-legend-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: x;
-  column-gap: 24px;
-  row-gap: 24px;
+  gap: 24px;
 }
 
 .ig-leg-item {
@@ -361,10 +358,10 @@
   height: 12px;
   border-radius: 50%;
 }
-.ig-c1 { background: #0ea5e9; } /* Tanpa Izin */
-.ig-c2 { background: #22c55e; } /* Zona Larangan */
-.ig-c3 { background: #eab308; } /* Kadaluarsa */
-.ig-c4 { background: #f97316; } /* Sengketa */
+.ig-c1 { background: #0ea5e9; }
+.ig-c2 { background: #22c55e; }
+.ig-c3 { background: #eab308; }
+.ig-c4 { background: #f97316; }
 
 .ig-leg-val {
   display: flex;
@@ -465,17 +462,29 @@
   flex: 1;
   display: flex;
   position: relative;
-  padding-left: 40px; /* Space for Y-Axis */
+  padding-left: 80px; /* Increased space for Y-Axis and label to avoid overlap */
   margin-bottom: 20px;
+}
+
+/* Y-Axis Label */
+.ig-y-axis-label {
+  position: absolute;
+  left: -20px; /* Pushed further left from the numbers */
+  top: 50%;
+  transform: translateY(-50%) rotate(-90deg);
+  font-size: 11px;
+  font-weight: 500;
+  color: #64748b;
+  white-space: nowrap;
 }
 
 /* Y-Axis Labels */
 .ig-y-axis {
   position: absolute;
-  left: 0;
+  left: 30px; /* Numbers position */
   top: 0;
   bottom: 30px;
-  width: 35px;
+  width: 40px; /* Width for numbers alignment */
   display: flex;
   flex-direction: column-reverse;
   justify-content: space-between;
@@ -487,7 +496,7 @@
 /* Grid Lines */
 .ig-grid-lines {
   position: absolute;
-  left: 40px;
+  left: 80px; /* Matches padding-left */
   right: 0;
   top: 0;
   bottom: 30px;
@@ -498,7 +507,7 @@
 }
 .ig-grid-line {
   width: 100%;
-  border-top: 1px solid #f1f5f9;
+  border-top: 1px dashed #e2e8f0; /* Modified to dashed lines like example */
 }
 
 /* Bars Area */
@@ -514,30 +523,33 @@
 .ig-group-wrap {
   display: flex;
   flex-direction: column;
+  justify-content: flex-end;
   align-items: center;
   gap: 8px;
   width: 100%;
+  height: 100%;
 }
 
 .ig-bars-group {
   display: flex;
   align-items: flex-end;
-  gap: 2px;
+  gap: 0; /* Minimum spacing between bars */
+  height: 100%;
 }
 
 .ig-bar-item {
-  width: 8px;
+  width: 8px; /* Thinner bars */
   border-radius: 2px 2px 0 0;
 }
-.ig-b-blue { background: #0ea5e9; }
-.ig-b-green { background: #16a34a; }
-.ig-b-yellow { background: #eab308; }
+.ig-b-blue { background: #0ea5e9; } /* Jumlah Aset */
+.ig-b-green { background: #16a34a; } /* Bersertifikat */
+.ig-b-yellow { background: #eab308; } /* Diproses */
 
 .ig-group-label {
   position: absolute;
   bottom: 0;
   font-size: 10px;
-  font-weight: 600;
+  font-weight: 500; /* Adjusted to match regular text */
   color: #64748b;
   text-align: center;
   white-space: nowrap;
@@ -559,7 +571,7 @@
   color: #334155;
 }
 .ig-dot-s {
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
 }
