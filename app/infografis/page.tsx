@@ -1,18 +1,17 @@
 'use client';
 
 import { useState } from 'react';
-  
+import Navbar from '../components/Navbar';
+import NavDrawer from '../components/Navdrawer';
 import '../styles/infografis.css';
 import AppShell from '../components/AppShell';
 
 export default function InfografisPage() {
-  const [drawerOpen, setDrawerOpen] = useState(false);
+ 
 
   return (
-    <>
+    <AppShell>
     
-
-      <AppShell>
         <div className="ig-container">
           
           {/* 1. Header Area */}
@@ -206,7 +205,7 @@ export default function InfografisPage() {
                 </div>
                 <div className="ig-inner-card">
                   <div className="ig-inner-hd">
-                      <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                     <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
                     Nilai Perolehan
                   </div>
                   <div className="ig-inner-lbl">Total Nilai Perolehan</div>
@@ -255,7 +254,7 @@ export default function InfografisPage() {
                 </div>
 
                 <div className="ig-donut-chart">
-                    <span className="ig-donut-pct">75%</span>
+                   <span className="ig-donut-pct">75%</span>
                 </div>
               </div>
             </div>
@@ -289,6 +288,8 @@ export default function InfografisPage() {
             
             <div className="ig-chart-container">
               <div className="ig-chart-main">
+                {/* Y-Axis Label */}
+                <div className="ig-y-axis-label">Jumlah Aset</div>
                 {/* Y-Axis */}
                 <div className="ig-y-axis">
                   {[0, 20, 40, 60, 80, 100, 120, 140, 160, 180, 200].map(val => (
@@ -315,13 +316,13 @@ export default function InfografisPage() {
                     { name: 'Simpang Batam', data: [88, 72, 63] },
                     { name: 'Simpang Lima', data: [139, 114, 98] },
                     { name: 'Simpang Empat', data: [163, 133, 115] },
-                    { name: 'Kab. K', data: [139, 114, 98] }
+                    { name: 'Kab. K', data: [139, null, null] } // Data dummy untuk mensimulasikan missing data di Kab K
                   ].map((group, idx) => (
                     <div key={idx} className="ig-group-wrap">
                       <div className="ig-bars-group">
-                        <div className="ig-bar-item ig-b-blue" style={{ height: `${(group.data[0] / 200) * 100}%` }}></div>
-                        <div className="ig-bar-item ig-b-green" style={{ height: `${(group.data[1] / 200) * 100}%` }}></div>
-                        <div className="ig-bar-item ig-b-yellow" style={{ height: `${(group.data[2] / 200) * 100}%` }}></div>
+                        {group.data[0] !== null && <div className="ig-bar-item ig-b-blue" style={{ height: `${(group.data[0] / 200) * 100}%` }}></div>}
+                        {group.data[1] !== null && <div className="ig-bar-item ig-b-green" style={{ height: `${(group.data[1] / 200) * 100}%` }}></div>}
+                        {group.data[2] !== null && <div className="ig-bar-item ig-b-yellow" style={{ height: `${(group.data[2] / 200) * 100}%` }}></div>}
                       </div>
                       <span className="ig-group-label">{group.name}</span>
                     </div>
@@ -345,7 +346,7 @@ export default function InfografisPage() {
           </div>
 
         </div>
-      </AppShell>
-    </>
+      
+    </AppShell>
   );
 }
