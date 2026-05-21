@@ -901,6 +901,14 @@ body {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  z-index: 1000;
+  max-height: calc(100% - 80px);
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.map-controls-right::-webkit-scrollbar {
+  display: none;
 }
 
 .map-btn {
