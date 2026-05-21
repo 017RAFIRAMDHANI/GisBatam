@@ -1,12 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-
-declare global {
-    interface Window {
-        google: typeof google;
-    }
-}
+import { useEffect, useRef, useState } from "react";
+import type { LayerGroup, Map as LeafletMap, Marker } from "leaflet";
 
 type LatLng = {
     lat: number;
@@ -44,6 +39,7 @@ type RtArea = {
     paths: LatLng[];
     labelPosition: LatLng;
 };
+
 
 const KECAMATAN_BATAM: KecamatanGroup[] = [
     {
@@ -184,6 +180,15 @@ const KECAMATAN_BATAM: KecamatanGroup[] = [
     },
 ];
 
+function escapeHtml(value: string) {
+    return value
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+}
+
 function createKelurahanSeeds(): KelurahanSeed[] {
     const result: KelurahanSeed[] = [];
 
@@ -240,6 +245,10 @@ function getRectCenter(paths: LatLng[]): LatLng {
     const lng = paths.reduce((sum, point) => sum + point.lng, 0) / paths.length;
 
     return { lat, lng };
+}
+
+function toLeafletPath(paths: LatLng[]): [number, number][] {
+    return paths.map((point) => [point.lat, point.lng]);
 }
 
 function generateDummyRTRW() {
@@ -342,263 +351,295 @@ const { rwAreas, rtAreas } = generateDummyRTRW();
 
 export default function MapArea() {
     const mapRef = useRef<HTMLDivElement | null>(null);
-    const mapInstanceRef = useRef<google.maps.Map | null>(null);
+    const mapInstanceRef = useRef<LeafletMap | null>(null);
 
-    const rwPolygonsRef = useRef<google.maps.Polygon[]>([]);
-    const rtPolygonsRef = useRef<google.maps.Polygon[]>([]);
-    const rwLabelsRef = useRef<google.maps.Marker[]>([]);
-    const rtLabelsRef = useRef<google.maps.Marker[]>([]);
-    const kelurahanLabelsRef = useRef<google.maps.Marker[]>([]);
+    const leafletRef = useRef<any>(null);
+
+    const rwLayerRef = useRef<LayerGroup | null>(null);
+    const rtLayerRef = useRef<LayerGroup | null>(null);
+    const rwLabelLayerRef = useRef<LayerGroup | null>(null);
+    const rtLabelLayerRef = useRef<LayerGroup | null>(null);
+    const kelurahanLabelLayerRef = useRef<LayerGroup | null>(null);
+
+    const userMarkerRef = useRef<Marker | null>(null);
+    const [ready, setReady] = useState(false);
 
     const rtrwVisibleRef = useRef(false);
     const requestedRtrwVisibleRef = useRef(false);
-    const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);
+
+    const BATAM_BOUNDS: [[number, number], [number, number]] = [
+        [0.82, 103.78],
+        [1.25, 104.28],
+    ];
+
+    const createTextIcon = (
+        text: string,
+        className: "kelurahan-label" | "rw-label" | "rt-label"
+    ) => {
+        const L = leafletRef.current;
+
+        return L.divIcon({
+            className: "rtrw-label-wrapper",
+            html: `<div class="${className}">${escapeHtml(text)}</div>`,
+            iconSize: [120, 26],
+            iconAnchor: [60, 13],
+        });
+    };
 
     const clearRTRWLayer = () => {
-        rwPolygonsRef.current.forEach((polygon) => polygon.setMap(null));
-        rtPolygonsRef.current.forEach((polygon) => polygon.setMap(null));
-        rwLabelsRef.current.forEach((marker) => marker.setMap(null));
-        rtLabelsRef.current.forEach((marker) => marker.setMap(null));
-        kelurahanLabelsRef.current.forEach((marker) => marker.setMap(null));
+        const map = mapInstanceRef.current;
 
-        rwPolygonsRef.current = [];
-        rtPolygonsRef.current = [];
-        rwLabelsRef.current = [];
-        rtLabelsRef.current = [];
-        kelurahanLabelsRef.current = [];
+        rwLayerRef.current?.clearLayers();
+        rtLayerRef.current?.clearLayers();
+        rwLabelLayerRef.current?.clearLayers();
+        rtLabelLayerRef.current?.clearLayers();
+        kelurahanLabelLayerRef.current?.clearLayers();
+
+        if (map) {
+            if (rwLayerRef.current && map.hasLayer(rwLayerRef.current)) {
+                map.removeLayer(rwLayerRef.current);
+            }
+
+            if (rtLayerRef.current && map.hasLayer(rtLayerRef.current)) {
+                map.removeLayer(rtLayerRef.current);
+            }
+
+            if (rwLabelLayerRef.current && map.hasLayer(rwLabelLayerRef.current)) {
+                map.removeLayer(rwLabelLayerRef.current);
+            }
+
+            if (rtLabelLayerRef.current && map.hasLayer(rtLabelLayerRef.current)) {
+                map.removeLayer(rtLabelLayerRef.current);
+            }
+
+            if (
+                kelurahanLabelLayerRef.current &&
+                map.hasLayer(kelurahanLabelLayerRef.current)
+            ) {
+                map.removeLayer(kelurahanLabelLayerRef.current);
+            }
+        }
 
         rtrwVisibleRef.current = false;
     };
 
     const applyLabelVisibility = () => {
         const map = mapInstanceRef.current;
+
         if (!map || !rtrwVisibleRef.current) return;
 
-        const zoom = map.getZoom() ?? 10;
+        const zoom = map.getZoom();
 
-        kelurahanLabelsRef.current.forEach((marker) => {
-            marker.setMap(zoom >= 10 ? map : null);
-        });
+        if (kelurahanLabelLayerRef.current) {
+            if (zoom >= 10) {
+                if (!map.hasLayer(kelurahanLabelLayerRef.current)) {
+                    kelurahanLabelLayerRef.current.addTo(map);
+                }
+            } else if (map.hasLayer(kelurahanLabelLayerRef.current)) {
+                map.removeLayer(kelurahanLabelLayerRef.current);
+            }
+        }
 
-        rwLabelsRef.current.forEach((marker) => {
-            marker.setMap(zoom >= 12 ? map : null);
-        });
+        if (rwLabelLayerRef.current) {
+            if (zoom >= 12) {
+                if (!map.hasLayer(rwLabelLayerRef.current)) {
+                    rwLabelLayerRef.current.addTo(map);
+                }
+            } else if (map.hasLayer(rwLabelLayerRef.current)) {
+                map.removeLayer(rwLabelLayerRef.current);
+            }
+        }
 
-        rtLabelsRef.current.forEach((marker) => {
-            marker.setMap(zoom >= 14 ? map : null);
-        });
+        if (rtLabelLayerRef.current) {
+            if (zoom >= 14) {
+                if (!map.hasLayer(rtLabelLayerRef.current)) {
+                    rtLabelLayerRef.current.addTo(map);
+                }
+            } else if (map.hasLayer(rtLabelLayerRef.current)) {
+                map.removeLayer(rtLabelLayerRef.current);
+            }
+        }
     };
 
     const fitToKotaBatamDummy = () => {
         const map = mapInstanceRef.current;
-        if (!map || !window.google?.maps) return;
+        const L = leafletRef.current;
 
-        const bounds = new window.google.maps.LatLngBounds();
+        if (!map || !L) return;
+
+        const allPoints: [number, number][] = [];
 
         rwAreas.forEach((area) => {
-            area.paths.forEach((point) => bounds.extend(point));
+            area.paths.forEach((point) => {
+                allPoints.push([point.lat, point.lng]);
+            });
         });
 
-        map.fitBounds(bounds);
+        if (allPoints.length > 0) {
+            map.fitBounds(L.latLngBounds(allPoints), {
+                padding: [30, 30],
+            });
+        }
     };
 
     const showRTRWLayer = () => {
         const map = mapInstanceRef.current;
-        if (!map || !window.google?.maps) return;
+        const L = leafletRef.current;
+
+        if (
+            !map ||
+            !L ||
+            !rwLayerRef.current ||
+            !rtLayerRef.current ||
+            !rwLabelLayerRef.current ||
+            !rtLabelLayerRef.current ||
+            !kelurahanLabelLayerRef.current
+        ) {
+            return;
+        }
 
         clearRTRWLayer();
 
-        const infoWindow = infoWindowRef.current ?? new window.google.maps.InfoWindow();
-        infoWindowRef.current = infoWindow;
-
         KELURAHAN_BATAM_SEEDS.forEach((area) => {
-            const label = new window.google.maps.Marker({
-                position: { lat: area.lat, lng: area.lng },
-                map: null,
-                clickable: false,
-                icon: {
-                    path: window.google.maps.SymbolPath.CIRCLE,
-                    scale: 0,
-                },
-                label: {
-                    text: area.kelurahan,
-                    color: "#111827",
-                    fontSize: "12px",
-                    fontWeight: "800",
-                },
-                zIndex: 80,
-            });
-
-            kelurahanLabelsRef.current.push(label);
+            L.marker([area.lat, area.lng], {
+                icon: createTextIcon(area.kelurahan, "kelurahan-label"),
+                interactive: false,
+                keyboard: false,
+            }).addTo(kelurahanLabelLayerRef.current);
         });
 
         rwAreas.forEach((area) => {
-            const polygon = new window.google.maps.Polygon({
-                paths: area.paths,
-                strokeColor: "#8b3dff",
-                strokeOpacity: 1,
-                strokeWeight: 4,
+            L.polygon(toLeafletPath(area.paths), {
+                color: "#8b3dff",
+                weight: 4,
+                opacity: 1,
                 fillColor: "#8b3dff",
-                fillOpacity: 0.10,
-                clickable: true,
-                zIndex: 20,
-                map,
-            });
-
-            polygon.addListener("click", (event: google.maps.MapMouseEvent) => {
-                infoWindow.setContent(`
+                fillOpacity: 0.1,
+                interactive: true,
+            })
+                .addTo(rwLayerRef.current)
+                .bindPopup(`
                     <div style="font-family: Arial, sans-serif; font-size: 13px; max-width: 280px;">
                         <strong>Batas RW Dummy</strong><br/>
                         Provinsi: Kepulauan Riau<br/>
                         Kota: Batam<br/>
-                        Kecamatan: ${area.kecamatan}<br/>
-                        Kelurahan: ${area.kelurahan}<br/>
-                        RW: ${area.rw}
+                        Kecamatan: ${escapeHtml(area.kecamatan)}<br/>
+                        Kelurahan: ${escapeHtml(area.kelurahan)}<br/>
+                        RW: ${escapeHtml(area.rw)}
                     </div>
                 `);
 
-                if (event.latLng) {
-                    infoWindow.setPosition(event.latLng);
-                    infoWindow.open(map);
-                }
-            });
-
-            const label = new window.google.maps.Marker({
-                position: area.labelPosition,
-                map: null,
-                clickable: false,
-                icon: {
-                    path: window.google.maps.SymbolPath.CIRCLE,
-                    scale: 0,
-                },
-                label: {
-                    text: area.rw,
-                    color: "#6d28d9",
-                    fontSize: "12px",
-                    fontWeight: "800",
-                },
-                zIndex: 60,
-            });
-
-            rwPolygonsRef.current.push(polygon);
-            rwLabelsRef.current.push(label);
+            L.marker([area.labelPosition.lat, area.labelPosition.lng], {
+                icon: createTextIcon(area.rw, "rw-label"),
+                interactive: false,
+                keyboard: false,
+            }).addTo(rwLabelLayerRef.current);
         });
 
         rtAreas.forEach((area) => {
-            const polygon = new window.google.maps.Polygon({
-                paths: area.paths,
-                strokeColor: "#fbc02d",
-                strokeOpacity: 1,
-                strokeWeight: 2,
+            L.polygon(toLeafletPath(area.paths), {
+                color: "#fbc02d",
+                weight: 2,
+                opacity: 1,
                 fillColor: "#fbc02d",
                 fillOpacity: 0.16,
-                clickable: true,
-                zIndex: 30,
-                map,
-            });
-
-            polygon.addListener("click", (event: google.maps.MapMouseEvent) => {
-                infoWindow.setContent(`
+                interactive: true,
+            })
+                .addTo(rtLayerRef.current)
+                .bindPopup(`
                     <div style="font-family: Arial, sans-serif; font-size: 13px; max-width: 280px;">
                         <strong>Batas RT Dummy</strong><br/>
                         Provinsi: Kepulauan Riau<br/>
                         Kota: Batam<br/>
-                        Kecamatan: ${area.kecamatan}<br/>
-                        Kelurahan: ${area.kelurahan}<br/>
-                        RW: ${area.rw}<br/>
-                        RT: ${area.rt}
+                        Kecamatan: ${escapeHtml(area.kecamatan)}<br/>
+                        Kelurahan: ${escapeHtml(area.kelurahan)}<br/>
+                        RW: ${escapeHtml(area.rw)}<br/>
+                        RT: ${escapeHtml(area.rt)}
                     </div>
                 `);
 
-                if (event.latLng) {
-                    infoWindow.setPosition(event.latLng);
-                    infoWindow.open(map);
-                }
-            });
-
-            const label = new window.google.maps.Marker({
-                position: area.labelPosition,
-                map: null,
-                clickable: false,
-                icon: {
-                    path: window.google.maps.SymbolPath.CIRCLE,
-                    scale: 0,
-                },
-                label: {
-                    text: area.rt,
-                    color: "#92400e",
-                    fontSize: "12px",
-                    fontWeight: "900",
-                },
-                zIndex: 70,
-            });
-
-            rtPolygonsRef.current.push(polygon);
-            rtLabelsRef.current.push(label);
+            L.marker([area.labelPosition.lat, area.labelPosition.lng], {
+                icon: createTextIcon(area.rt, "rt-label"),
+                interactive: false,
+                keyboard: false,
+            }).addTo(rtLabelLayerRef.current);
         });
 
+        rwLayerRef.current.addTo(map);
+        rtLayerRef.current.addTo(map);
+
         rtrwVisibleRef.current = true;
+
         fitToKotaBatamDummy();
         applyLabelVisibility();
     };
 
     useEffect(() => {
-        const initMap = () => {
-            if (!window.google || !mapRef.current) return;
+        if (typeof window === "undefined" || !mapRef.current) return;
+        if (mapInstanceRef.current) return;
 
-            const kotaBatamBounds = new window.google.maps.LatLngBounds(
-                { lat: 0.82, lng: 103.78 },
-                { lat: 1.25, lng: 104.28 }
-            );
+        let mounted = true;
 
-            const map = new window.google.maps.Map(mapRef.current, {
-                center: { lat: 1.1185, lng: 104.053 },
-                zoom: 11,
-                minZoom: 7,
-                maxZoom: 20,
-                mapTypeId: "roadmap",
-                mapTypeControl: false,
-                streetViewControl: false,
-                fullscreenControl: false,
-                zoomControl: false,
-                gestureHandling: "greedy",
-                clickableIcons: true,
+        const initMap = async () => {
+            const L = (await import("leaflet")).default;
+            leafletRef.current = L;
+
+            if (!document.querySelector('link[href*="leaflet@1.9.4"]')) {
+                const link = document.createElement("link");
+                link.rel = "stylesheet";
+                link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+                document.head.appendChild(link);
+            }
+
+            if (!mounted || !mapRef.current) return;
+
+            // Fix icon default di Next.js
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            delete (L.Icon.Default.prototype as any)._getIconUrl;
+            L.Icon.Default.mergeOptions({
+                iconRetinaUrl:
+                    "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
+                iconUrl:
+                    "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+                shadowUrl:
+                    "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
             });
 
-            map.fitBounds(kotaBatamBounds);
+            const map = L.map(mapRef.current, {
+                center: [1.1185, 104.053],
+                zoom: 11,
+                minZoom: 7,
+                maxZoom: 19,
+                zoomControl: false,
+                attributionControl: true,
+            });
+
+            L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+                attribution: "© OpenStreetMap contributors",
+                maxZoom: 19,
+            }).addTo(map);
+
+            map.fitBounds(BATAM_BOUNDS);
+
             mapInstanceRef.current = map;
 
-            infoWindowRef.current = new window.google.maps.InfoWindow();
+            rwLayerRef.current = L.layerGroup();
+            rtLayerRef.current = L.layerGroup();
+            rwLabelLayerRef.current = L.layerGroup();
+            rtLabelLayerRef.current = L.layerGroup();
+            kelurahanLabelLayerRef.current = L.layerGroup();
 
-            map.addListener("zoom_changed", applyLabelVisibility);
+            map.on("zoomend", applyLabelVisibility);
 
-            if (requestedRtrwVisibleRef.current) {
-                showRTRWLayer();
-            }
-        };
+            setTimeout(() => {
+                map.invalidateSize();
 
-        const loadGoogleMaps = () => {
-            if (window.google?.maps) {
-                initMap();
-                return;
-            }
+                if (requestedRtrwVisibleRef.current) {
+                    showRTRWLayer();
+                }
+            }, 300);
 
-            const existingScript = document.getElementById(
-                "google-maps-script"
-            ) as HTMLScriptElement | null;
-
-            if (existingScript) {
-                existingScript.addEventListener("load", initMap);
-                return;
-            }
-
-            const script = document.createElement("script");
-            script.id = "google-maps-script";
-            script.src = `https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`;
-            script.async = true;
-            script.defer = true;
-            script.addEventListener("load", initMap);
-            document.body.appendChild(script);
+            if (mounted) setReady(true);
         };
 
         const handleLayerToggle = (event: Event) => {
@@ -619,68 +660,75 @@ export default function MapArea() {
         };
 
         window.addEventListener("layer-toggle", handleLayerToggle);
-        loadGoogleMaps();
+        initMap();
 
         return () => {
+            mounted = false;
+
             window.removeEventListener("layer-toggle", handleLayerToggle);
 
-            const existingScript = document.getElementById("google-maps-script");
-            if (existingScript) {
-                existingScript.removeEventListener("load", initMap);
+            clearRTRWLayer();
+
+            if (mapInstanceRef.current) {
+                mapInstanceRef.current.remove();
+                mapInstanceRef.current = null;
             }
 
-            clearRTRWLayer();
+            rwLayerRef.current = null;
+            rtLayerRef.current = null;
+            rwLabelLayerRef.current = null;
+            rtLabelLayerRef.current = null;
+            kelurahanLabelLayerRef.current = null;
+            userMarkerRef.current = null;
         };
     }, []);
 
     const handleZoomIn = () => {
         const map = mapInstanceRef.current;
         if (!map) return;
-        map.setZoom((map.getZoom() || 11) + 1);
+
+        map.setZoom(map.getZoom() + 1);
     };
 
     const handleZoomOut = () => {
         const map = mapInstanceRef.current;
         if (!map) return;
-        map.setZoom((map.getZoom() || 11) - 1);
+
+        map.setZoom(map.getZoom() - 1);
     };
 
     const handleResetView = () => {
         const map = mapInstanceRef.current;
         if (!map) return;
 
-        const kotaBatamBounds = new window.google.maps.LatLngBounds(
-            { lat: 0.82, lng: 103.78 },
-            { lat: 1.25, lng: 104.28 }
-        );
-
-        map.fitBounds(kotaBatamBounds);
+        map.fitBounds(BATAM_BOUNDS);
     };
 
-    const handleMyLocation = () => {
+    const handleMyLocation = async () => {
         const map = mapInstanceRef.current;
-        if (!map || !navigator.geolocation) return;
+        const L = leafletRef.current;
+
+        if (!map || !L || !navigator.geolocation) return;
 
         navigator.geolocation.getCurrentPosition(
-            (position) => {
-                const currentPos = {
-                    lat: position.coords.latitude,
-                    lng: position.coords.longitude,
-                };
+            (pos) => {
+                const { latitude: lat, longitude: lng } = pos.coords;
 
-                map.panTo(currentPos);
-                map.setZoom(16);
+                map.setView([lat, lng], 17);
 
-                new window.google.maps.Marker({
-                    position: currentPos,
-                    map,
-                    title: "Lokasi Anda",
-                });
+                if (userMarkerRef.current) {
+                    map.removeLayer(userMarkerRef.current);
+                    userMarkerRef.current = null;
+                }
+
+                const marker = L.marker([lat, lng])
+                    .addTo(map)
+                    .bindPopup("Lokasi Anda")
+                    .openPopup();
+
+                userMarkerRef.current = marker;
             },
-            (error) => {
-                console.error("Gagal mengambil lokasi:", error);
-                alert("Lokasi tidak dapat diakses.");
-            }
+            () => alert("Lokasi tidak dapat diakses.")
         );
     };
 
@@ -695,12 +743,104 @@ export default function MapArea() {
         }
     };
 
-    return (
-        <main className="map-area">
-            <div ref={mapRef} className="map-ph" />
+    const handlePan = async (dir: "up" | "down" | "left" | "right") => {
+        const map = mapInstanceRef.current;
+        const L = leafletRef.current;
 
-            <div className="map-controls-right">
-                <button className="map-btn" onClick={handleFullscreen} title="Fullscreen" type="button">
+        if (!map || !L) return;
+
+        const amount = 150;
+        const center = map.getCenter();
+        const point = map.latLngToContainerPoint(center);
+
+        const newPoint = L.point(
+            point.x + (dir === "right" ? amount : dir === "left" ? -amount : 0),
+            point.y + (dir === "down" ? amount : dir === "up" ? -amount : 0),
+        );
+
+        map.panTo(map.containerPointToLatLng(newPoint), { animate: true });
+    };
+
+    return (
+        <main className="map-area" style={{ position: "relative", overflow: "hidden" }}>
+            <style jsx global>{`
+                .rtrw-label-wrapper {
+                    background: transparent;
+                    border: none;
+                    pointer-events: none;
+                }
+
+                .kelurahan-label,
+                .rw-label,
+                .rt-label {
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    min-width: max-content;
+                    white-space: nowrap;
+                    border-radius: 6px;
+                    padding: 2px 6px;
+                    font-family: Arial, sans-serif;
+                    line-height: 1.2;
+                    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+                }
+
+                .kelurahan-label {
+                    background: rgba(255, 255, 255, 0.96);
+                    border: 1px solid rgba(17, 24, 39, 0.2);
+                    color: #111827;
+                    font-size: 11px;
+                    font-weight: 800;
+                }
+
+                .rw-label {
+                    background: rgba(255, 255, 255, 0.96);
+                    border: 1px solid rgba(139, 61, 255, 0.35);
+                    color: #6d28d9;
+                    font-size: 12px;
+                    font-weight: 800;
+                }
+
+                .rt-label {
+                    background: rgba(255, 248, 220, 0.96);
+                    border: 1px solid rgba(251, 192, 45, 0.75);
+                    color: #92400e;
+                    font-size: 12px;
+                    font-weight: 900;
+                }
+            `}</style>
+
+            <div ref={mapRef} style={{ position: "absolute", inset: 0, zIndex: 0 }} />
+
+            {!ready && (
+                <div
+                    style={{
+                        position: "absolute",
+                        inset: 0,
+                        zIndex: 10,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        background: "#e8edf3",
+                    }}
+                >
+                    <span style={{ fontSize: 14, color: "#a0aec0" }}>
+                        Memuat peta...
+                    </span>
+                </div>
+            )}
+
+            <div
+                className="map-controls-right"
+                style={{ zIndex: 1000, pointerEvents: "none" }}
+            >
+                <button
+                    className="map-btn"
+                    style={{ pointerEvents: "all" }}
+                    onClick={handleFullscreen}
+                    title="Fullscreen"
+                    type="button"
+                >
                     <svg viewBox="0 0 24 24">
                         <polyline points="15 3 21 3 21 9" />
                         <polyline points="9 21 3 21 3 15" />
@@ -709,7 +849,13 @@ export default function MapArea() {
                     </svg>
                 </button>
 
-                <button className="map-btn" onClick={handleResetView} title="Reset View" type="button">
+                <button
+                    className="map-btn"
+                    style={{ pointerEvents: "all" }}
+                    onClick={handleResetView}
+                    title="Reset View"
+                    type="button"
+                >
                     <svg viewBox="0 0 24 24">
                         <rect x="3" y="3" width="7" height="7" rx="1" />
                         <rect x="14" y="3" width="7" height="7" rx="1" />
@@ -718,15 +864,33 @@ export default function MapArea() {
                     </svg>
                 </button>
 
-                <button className="map-btn" onClick={handleZoomIn} title="Zoom In" type="button">
+                <button
+                    className="map-btn"
+                    style={{ pointerEvents: "all" }}
+                    onClick={handleZoomIn}
+                    title="Zoom In"
+                    type="button"
+                >
                     +
                 </button>
 
-                <button className="map-btn" onClick={handleZoomOut} title="Zoom Out" type="button">
+                <button
+                    className="map-btn"
+                    style={{ pointerEvents: "all" }}
+                    onClick={handleZoomOut}
+                    title="Zoom Out"
+                    type="button"
+                >
                     −
                 </button>
 
-                <button className="map-btn" onClick={handleMyLocation} title="Lokasi Saya" type="button">
+                <button
+                    className="map-btn"
+                    style={{ pointerEvents: "all" }}
+                    onClick={handleMyLocation}
+                    title="Lokasi Saya"
+                    type="button"
+                >
                     <svg viewBox="0 0 24 24">
                         <circle cx="12" cy="12" r="3" />
                         <line x1="12" y1="2" x2="12" y2="7" />
@@ -736,7 +900,7 @@ export default function MapArea() {
                     </svg>
                 </button>
 
-                <button className="map-btn" title="Layer" type="button">
+                <button className="map-btn" style={{ pointerEvents: "all" }} title="Layer" type="button">
                     <svg viewBox="0 0 24 24">
                         <line x1="4" y1="12" x2="20" y2="12" />
                         <line x1="8" y1="7" x2="8" y2="9" />
@@ -745,14 +909,14 @@ export default function MapArea() {
                     </svg>
                 </button>
 
-                <button className="map-btn" title="Checklist" type="button">
+                <button className="map-btn" style={{ pointerEvents: "all" }} title="Checklist" type="button">
                     <svg viewBox="0 0 24 24">
                         <polyline points="9 11 12 14 22 4" />
                         <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
                     </svg>
                 </button>
 
-                <button className="map-btn" title="Riwayat" type="button">
+                <button className="map-btn" style={{ pointerEvents: "all" }} title="Riwayat" type="button">
                     <svg viewBox="0 0 24 24">
                         <polyline points="12 6 12 12 16 14" />
                         <circle cx="12" cy="12" r="9" />
@@ -760,12 +924,61 @@ export default function MapArea() {
                 </button>
             </div>
 
-            <div className="map-scale">
+            <div
+                style={{
+                    position: "absolute",
+                    bottom: 40,
+                    right: 14,
+                    zIndex: 1000,
+                    display: "grid",
+                    gridTemplateColumns: "repeat(3, 34px)",
+                    gridTemplateRows: "repeat(3, 34px)",
+                    gap: 3,
+                }}
+            >
+                <div />
+                <button className="map-btn" onClick={() => handlePan("up")} title="Pan Up" type="button">
+                    <svg viewBox="0 0 24 24">
+                        <polyline points="18 15 12 9 6 15" />
+                    </svg>
+                </button>
+                <div />
+
+                <button className="map-btn" onClick={() => handlePan("left")} title="Pan Left" type="button">
+                    <svg viewBox="0 0 24 24">
+                        <polyline points="15 18 9 12 15 6" />
+                    </svg>
+                </button>
+
+                <button className="map-btn" onClick={handleResetView} title="Reset" type="button">
+                    <svg viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="4" fill="#555" />
+                    </svg>
+                </button>
+
+                <button className="map-btn" onClick={() => handlePan("right")} title="Pan Right" type="button">
+                    <svg viewBox="0 0 24 24">
+                        <polyline points="9 18 15 12 9 6" />
+                    </svg>
+                </button>
+
+                <div />
+                <button className="map-btn" onClick={() => handlePan("down")} title="Pan Down" type="button">
+                    <svg viewBox="0 0 24 24">
+                        <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                </button>
+                <div />
+            </div>
+
+            <div className="map-scale" style={{ zIndex: 1000 }}>
                 <span>400 km</span>
                 <div className="scale-bar" />
             </div>
 
-            <div className="map-credit">©2021 Developed by Braga Technologies</div>
+            <div className="map-credit" style={{ zIndex: 1000 }}>
+                ©2021 Developed by Braga Technologies
+            </div>
         </main>
     );
 }
