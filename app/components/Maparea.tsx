@@ -1,317 +1,686 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import type { LayerGroup, Map as LeafletMap, Marker } from "leaflet";
+import { useEffect, useRef } from "react";
+
+declare global {
+    interface Window {
+        google: typeof google;
+    }
+}
+
+type LatLng = {
+    lat: number;
+    lng: number;
+};
+
+type KecamatanGroup = {
+    kecamatan: string;
+    center: LatLng;
+    kelurahan: string[];
+};
+
+type KelurahanSeed = {
+    kecamatan: string;
+    kelurahan: string;
+    lat: number;
+    lng: number;
+};
+
+type RwArea = {
+    id: string;
+    kecamatan: string;
+    kelurahan: string;
+    rw: string;
+    paths: LatLng[];
+    labelPosition: LatLng;
+};
+
+type RtArea = {
+    id: string;
+    kecamatan: string;
+    kelurahan: string;
+    rw: string;
+    rt: string;
+    paths: LatLng[];
+    labelPosition: LatLng;
+};
+
+const KECAMATAN_BATAM: KecamatanGroup[] = [
+    {
+        kecamatan: "Belakang Padang",
+        center: { lat: 1.152, lng: 103.895 },
+        kelurahan: [
+            "Pulau Terong",
+            "Pecong",
+            "Kasu",
+            "Pemping",
+            "Tanjung Sari",
+            "Sekanak Raya",
+        ],
+    },
+    {
+        kecamatan: "Bulang",
+        center: { lat: 0.985, lng: 103.835 },
+        kelurahan: [
+            "Pantai Gelam",
+            "Temoyong",
+            "Pulau Setokok",
+            "Batu Legong",
+            "Bulang Lintang",
+            "Pulau Buluh",
+        ],
+    },
+    {
+        kecamatan: "Galang",
+        center: { lat: 0.89, lng: 104.18 },
+        kelurahan: [
+            "Pulau Abang",
+            "Karas",
+            "Sijantung",
+            "Sembulang",
+            "Rempang Cate",
+            "Subang Mas",
+            "Galang Baru",
+            "Air Raja",
+        ],
+    },
+    {
+        kecamatan: "Sei Beduk",
+        center: { lat: 1.044, lng: 104.05 },
+        kelurahan: [
+            "Tanjung Piayu",
+            "Duriangkang",
+            "Mangsang",
+            "Mukakuning",
+        ],
+    },
+    {
+        kecamatan: "Nongsa",
+        center: { lat: 1.191, lng: 104.095 },
+        kelurahan: [
+            "Ngenang",
+            "Kabil",
+            "Batu Besar",
+            "Sambau",
+        ],
+    },
+    {
+        kecamatan: "Sekupang",
+        center: { lat: 1.115, lng: 103.94 },
+        kelurahan: [
+            "Tanjung Riau",
+            "Tiban Baru",
+            "Tiban Lama",
+            "Tiban Indah",
+            "Patam Lestari",
+            "Sungai Harapan",
+            "Tanjung Pinggir",
+        ],
+    },
+    {
+        kecamatan: "Lubuk Baja",
+        center: { lat: 1.135, lng: 104.006 },
+        kelurahan: [
+            "Batu Selicin",
+            "Lubuk Baja Kota",
+            "Kampung Pelita",
+            "Baloi Indah",
+            "Tanjung Uma",
+        ],
+    },
+    {
+        kecamatan: "Batu Ampar",
+        center: { lat: 1.163, lng: 104.0 },
+        kelurahan: [
+            "Tanjung Sengkuang",
+            "Sungai Jodoh",
+            "Batu Merah",
+            "Kampung Seraya",
+        ],
+    },
+    {
+        kecamatan: "Batam Kota",
+        center: { lat: 1.1185, lng: 104.053 },
+        kelurahan: [
+            "Teluk Tering",
+            "Taman Baloi",
+            "Sukajadi",
+            "Belian",
+            "Sungai Panas",
+            "Baloi Permai",
+        ],
+    },
+    {
+        kecamatan: "Sagulung",
+        center: { lat: 1.025, lng: 103.994 },
+        kelurahan: [
+            "Tembesi",
+            "Sungai Binti",
+            "Sungai Lekop",
+            "Sagulung Kota",
+            "Sungai Langkai",
+            "Sungai Pelunggut",
+        ],
+    },
+    {
+        kecamatan: "Batu Aji",
+        center: { lat: 1.041, lng: 103.969 },
+        kelurahan: [
+            "Bukit Tempayan",
+            "Buliang",
+            "Kibing",
+            "Tanjung Uncang",
+        ],
+    },
+    {
+        kecamatan: "Bengkong",
+        center: { lat: 1.143, lng: 104.032 },
+        kelurahan: [
+            "Bengkong Laut",
+            "Bengkong Indah",
+            "Sadai",
+            "Tanjung Buntung",
+        ],
+    },
+];
+
+function createKelurahanSeeds(): KelurahanSeed[] {
+    const result: KelurahanSeed[] = [];
+
+    KECAMATAN_BATAM.forEach((group) => {
+        const total = group.kelurahan.length;
+
+        group.kelurahan.forEach((kelurahan, index) => {
+            const angle = (Math.PI * 2 * index) / total;
+            const radius = 0.012 + (index % 3) * 0.003;
+
+            result.push({
+                kecamatan: group.kecamatan,
+                kelurahan,
+                lat: group.center.lat + Math.sin(angle) * radius,
+                lng: group.center.lng + Math.cos(angle) * radius,
+            });
+        });
+    });
+
+    return result;
+}
+
+const KELURAHAN_BATAM_SEEDS = createKelurahanSeeds();
+
+function createRect(center: LatLng, halfLat: number, halfLng: number): LatLng[] {
+    return [
+        { lat: center.lat - halfLat, lng: center.lng - halfLng },
+        { lat: center.lat - halfLat, lng: center.lng + halfLng },
+        { lat: center.lat + halfLat, lng: center.lng + halfLng },
+        { lat: center.lat + halfLat, lng: center.lng - halfLng },
+    ];
+}
+
+function createInsetRect(
+    south: number,
+    west: number,
+    north: number,
+    east: number,
+    insetRatio = 0.06
+): LatLng[] {
+    const latInset = (north - south) * insetRatio;
+    const lngInset = (east - west) * insetRatio;
+
+    return [
+        { lat: south + latInset, lng: west + lngInset },
+        { lat: south + latInset, lng: east - lngInset },
+        { lat: north - latInset, lng: east - lngInset },
+        { lat: north - latInset, lng: west + lngInset },
+    ];
+}
+
+function getRectCenter(paths: LatLng[]): LatLng {
+    const lat = paths.reduce((sum, point) => sum + point.lat, 0) / paths.length;
+    const lng = paths.reduce((sum, point) => sum + point.lng, 0) / paths.length;
+
+    return { lat, lng };
+}
+
+function generateDummyRTRW() {
+    const rwAreas: RwArea[] = [];
+    const rtAreas: RtArea[] = [];
+
+    KELURAHAN_BATAM_SEEDS.forEach((seed) => {
+        const rwHalfLat = 0.003;
+        const rwHalfLng = 0.0038;
+
+        const rwCenters = [
+            {
+                lat: seed.lat + 0.0032,
+                lng: seed.lng,
+            },
+            {
+                lat: seed.lat - 0.0032,
+                lng: seed.lng,
+            },
+        ];
+
+        rwCenters.forEach((rwCenter, rwIndex) => {
+            const rw = `RW ${String(rwIndex + 1).padStart(2, "0")}`;
+            const rwPaths = createRect(rwCenter, rwHalfLat, rwHalfLng);
+
+            rwAreas.push({
+                id: `${seed.kecamatan}-${seed.kelurahan}-${rw}`,
+                kecamatan: seed.kecamatan,
+                kelurahan: seed.kelurahan,
+                rw,
+                paths: rwPaths,
+                labelPosition: rwCenter,
+            });
+
+            const south = rwCenter.lat - rwHalfLat;
+            const north = rwCenter.lat + rwHalfLat;
+            const west = rwCenter.lng - rwHalfLng;
+            const east = rwCenter.lng + rwHalfLng;
+
+            const midLat = (south + north) / 2;
+            const midLng = (west + east) / 2;
+
+            const rtBoxes = [
+                {
+                    rt: "RT 01",
+                    south: midLat,
+                    west,
+                    north,
+                    east: midLng,
+                },
+                {
+                    rt: "RT 02",
+                    south: midLat,
+                    west: midLng,
+                    north,
+                    east,
+                },
+                {
+                    rt: "RT 03",
+                    south,
+                    west,
+                    north: midLat,
+                    east: midLng,
+                },
+                {
+                    rt: "RT 04",
+                    south,
+                    west: midLng,
+                    north: midLat,
+                    east,
+                },
+            ];
+
+            rtBoxes.forEach((box) => {
+                const rtPaths = createInsetRect(
+                    box.south,
+                    box.west,
+                    box.north,
+                    box.east,
+                    0.06
+                );
+
+                rtAreas.push({
+                    id: `${seed.kecamatan}-${seed.kelurahan}-${rw}-${box.rt}`,
+                    kecamatan: seed.kecamatan,
+                    kelurahan: seed.kelurahan,
+                    rw,
+                    rt: box.rt,
+                    paths: rtPaths,
+                    labelPosition: getRectCenter(rtPaths),
+                });
+            });
+        });
+    });
+
+    return { rwAreas, rtAreas };
+}
+
+const { rwAreas, rtAreas } = generateDummyRTRW();
 
 export default function MapArea() {
     const mapRef = useRef<HTMLDivElement | null>(null);
-    const mapInstanceRef = useRef<LeafletMap | null>(null);
-    const poiLayerRef = useRef<LayerGroup | null>(null);
-    const userMarkerRef = useRef<Marker | null>(null);
-    const [ready, setReady] = useState(false);
+    const mapInstanceRef = useRef<google.maps.Map | null>(null);
 
-    const JABAR_BOUNDS: [[number, number], [number, number]] = [
-        [-7.83, 106.20],
-        [-5.85, 108.90],
-    ];
+    const rwPolygonsRef = useRef<google.maps.Polygon[]>([]);
+    const rtPolygonsRef = useRef<google.maps.Polygon[]>([]);
+    const rwLabelsRef = useRef<google.maps.Marker[]>([]);
+    const rtLabelsRef = useRef<google.maps.Marker[]>([]);
+    const kelurahanLabelsRef = useRef<google.maps.Marker[]>([]);
 
-    useEffect(() => {
-        if (typeof window === "undefined" || !mapRef.current) return;
-        if (mapInstanceRef.current) return;
+    const rtrwVisibleRef = useRef(false);
+    const requestedRtrwVisibleRef = useRef(false);
+    const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);
 
-        let mounted = true;
-        let poiTimer: ReturnType<typeof setTimeout> | null = null;
+    const clearRTRWLayer = () => {
+        rwPolygonsRef.current.forEach((polygon) => polygon.setMap(null));
+        rtPolygonsRef.current.forEach((polygon) => polygon.setMap(null));
+        rwLabelsRef.current.forEach((marker) => marker.setMap(null));
+        rtLabelsRef.current.forEach((marker) => marker.setMap(null));
+        kelurahanLabelsRef.current.forEach((marker) => marker.setMap(null));
 
-        const initMap = async () => {
-            const L = (await import("leaflet")).default;
+        rwPolygonsRef.current = [];
+        rtPolygonsRef.current = [];
+        rwLabelsRef.current = [];
+        rtLabelsRef.current = [];
+        kelurahanLabelsRef.current = [];
 
-            if (!document.querySelector('link[href*="leaflet@1.9.4"]')) {
-                const link = document.createElement("link");
-                link.rel = "stylesheet";
-                link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
-                document.head.appendChild(link);
-            }
+        rtrwVisibleRef.current = false;
+    };
 
-            if (!mounted || !mapRef.current) return;
+    const applyLabelVisibility = () => {
+        const map = mapInstanceRef.current;
+        if (!map || !rtrwVisibleRef.current) return;
 
-            // Fix icon default di Next.js
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            delete (L.Icon.Default.prototype as any)._getIconUrl;
-            L.Icon.Default.mergeOptions({
-                iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-                iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-                shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+        const zoom = map.getZoom() ?? 10;
+
+        kelurahanLabelsRef.current.forEach((marker) => {
+            marker.setMap(zoom >= 10 ? map : null);
+        });
+
+        rwLabelsRef.current.forEach((marker) => {
+            marker.setMap(zoom >= 12 ? map : null);
+        });
+
+        rtLabelsRef.current.forEach((marker) => {
+            marker.setMap(zoom >= 14 ? map : null);
+        });
+    };
+
+    const fitToKotaBatamDummy = () => {
+        const map = mapInstanceRef.current;
+        if (!map || !window.google?.maps) return;
+
+        const bounds = new window.google.maps.LatLngBounds();
+
+        rwAreas.forEach((area) => {
+            area.paths.forEach((point) => bounds.extend(point));
+        });
+
+        map.fitBounds(bounds);
+    };
+
+    const showRTRWLayer = () => {
+        const map = mapInstanceRef.current;
+        if (!map || !window.google?.maps) return;
+
+        clearRTRWLayer();
+
+        const infoWindow = infoWindowRef.current ?? new window.google.maps.InfoWindow();
+        infoWindowRef.current = infoWindow;
+
+        KELURAHAN_BATAM_SEEDS.forEach((area) => {
+            const label = new window.google.maps.Marker({
+                position: { lat: area.lat, lng: area.lng },
+                map: null,
+                clickable: false,
+                icon: {
+                    path: window.google.maps.SymbolPath.CIRCLE,
+                    scale: 0,
+                },
+                label: {
+                    text: area.kelurahan,
+                    color: "#111827",
+                    fontSize: "12px",
+                    fontWeight: "800",
+                },
+                zIndex: 80,
             });
 
-            const map = L.map(mapRef.current, {
-                center: [-6.90389, 107.61861],
-                zoom: 8,
-                minZoom: 7,
-                maxZoom: 19,
-                zoomControl: false,
-                attributionControl: true,
+            kelurahanLabelsRef.current.push(label);
+        });
+
+        rwAreas.forEach((area) => {
+            const polygon = new window.google.maps.Polygon({
+                paths: area.paths,
+                strokeColor: "#8b3dff",
+                strokeOpacity: 1,
+                strokeWeight: 4,
+                fillColor: "#8b3dff",
+                fillOpacity: 0.10,
+                clickable: true,
+                zIndex: 20,
+                map,
             });
 
-            // Tampilan map lama tetap dipakai
-            L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-                attribution: "© OpenStreetMap contributors",
-                maxZoom: 19,
-            }).addTo(map);
-
-            map.fitBounds(JABAR_BOUNDS);
-            mapInstanceRef.current = map;
-
-            const poiLayer = L.layerGroup().addTo(map);
-            poiLayerRef.current = poiLayer;
-
-            const escapeHtml = (value: string) => {
-                return value
-                    .replaceAll("&", "&amp;")
-                    .replaceAll("<", "&lt;")
-                    .replaceAll(">", "&gt;")
-                    .replaceAll('"', "&quot;")
-                    .replaceAll("'", "&#039;");
-            };
-
-            const getCategoryName = (categories: string[] = []) => {
-                const joined = categories.join(" ");
-
-                if (joined.includes("religion.place_of_worship.islam")) return "Masjid / Musala";
-                if (joined.includes("religion.place_of_worship")) return "Tempat Ibadah";
-                if (joined.includes("building.place_of_worship")) return "Tempat Ibadah";
-                if (joined.includes("religion")) return "Tempat Ibadah";
-
-                if (joined.includes("commercial")) return "Toko / Komersial";
-                if (joined.includes("catering")) return "Makanan / Minuman";
-                if (joined.includes("service")) return "Jasa / Layanan";
-                if (joined.includes("healthcare")) return "Kesehatan";
-                if (joined.includes("education")) return "Pendidikan";
-                if (joined.includes("tourism")) return "Wisata";
-                if (joined.includes("entertainment")) return "Hiburan";
-                if (joined.includes("office")) return "Kantor";
-                if (joined.includes("leisure")) return "Area Publik";
-                if (joined.includes("public_transport")) return "Transportasi";
-                if (joined.includes("amenity")) return "Fasilitas Umum";
-
-                return "Tempat";
-            };
-
-            const getMarkerColor = (categories: string[] = []) => {
-                const joined = categories.join(" ");
-
-                if (joined.includes("religion")) return "#6d4c41";
-                if (joined.includes("building.place_of_worship")) return "#6d4c41";
-                if (joined.includes("commercial")) return "#e53935";
-                if (joined.includes("catering")) return "#fb8c00";
-                if (joined.includes("service")) return "#8e24aa";
-                if (joined.includes("healthcare")) return "#d81b60";
-                if (joined.includes("education")) return "#3949ab";
-                if (joined.includes("tourism")) return "#43a047";
-                if (joined.includes("entertainment")) return "#00acc1";
-                if (joined.includes("office")) return "#546e7a";
-                if (joined.includes("public_transport")) return "#00897b";
-
-                return "#1976d2";
-            };
-
-            const loadGeoapifyPlaces = async () => {
-                if (!mapInstanceRef.current || !poiLayerRef.current) return;
-
-                const zoom = map.getZoom();
-
-                // Jangan load saat level provinsi/kabupaten, terlalu luas dan boros.
-                if (zoom < 15) {
-                    poiLayer.clearLayers();
-                    return;
-                }
-
-                const bounds = map.getBounds();
-
-                const south = bounds.getSouth();
-                const west = bounds.getWest();
-                const north = bounds.getNorth();
-                const east = bounds.getEast();
-
-                const midLat = (south + north) / 2;
-                const midLng = (west + east) / 2;
-
-                // Bagi layar menjadi 4 kotak supaya data lebih merata, bukan cuma dekat tengah.
-                const cells = [
-                    { south: midLat, west, north, east: midLng },
-                    { south: midLat, west: midLng, north, east },
-                    { south, west, north: midLat, east: midLng },
-                    { south, west: midLng, north: midLat, east },
-                ];
-
-                try {
-                    const results = await Promise.all(
-                        cells.map((cell) =>
-                            fetch(
-                                `/api/geoapify-places?south=${cell.south}&west=${cell.west}&north=${cell.north}&east=${cell.east}`
-                            )
-                                .then((res) => {
-                                    if (!res.ok) return null;
-                                    return res.json();
-                                })
-                                .catch(() => null)
-                        )
-                    );
-
-                    const seen = new Set<string>();
-                    const features: any[] = [];
-
-                    results.forEach((data) => {
-                        if (!data?.features) return;
-
-                        data.features.forEach((feature: any) => {
-                            const id =
-                                feature.properties?.place_id ??
-                                `${feature.geometry?.coordinates?.[0]}-${feature.geometry?.coordinates?.[1]}`;
-
-                            if (!seen.has(id)) {
-                                seen.add(id);
-                                features.push(feature);
-                            }
-                        });
-                    });
-
-                    console.log("Jumlah tempat dari Geoapify:", features.length);
-
-                    poiLayer.clearLayers();
-
-                    features.forEach((feature: any) => {
-                        const coordinates = feature.geometry?.coordinates;
-                        const properties = feature.properties ?? {};
-
-                        if (!coordinates || coordinates.length < 2) return;
-
-                        const lng = coordinates[0];
-                        const lat = coordinates[1];
-
-                        const categories: string[] = properties.categories ?? [];
-
-                        const name =
-                            properties.name ??
-                            properties.address_line1 ??
-                            properties.formatted ??
-                            "Tempat";
-
-                        const categoryName = getCategoryName(categories);
-                        const color = getMarkerColor(categories);
-
-                        const address =
-                            properties.formatted ??
-                            [properties.street, properties.housenumber, properties.city]
-                                .filter(Boolean)
-                                .join(" ");
-
-                        const markerHtml = `
-                <div class="geoapify-poi-marker" style="--poi-color:${color}">
-                    <div class="geoapify-poi-dot"></div>
-                    ${zoom >= 16
-                                ? `<div class="geoapify-poi-name">${escapeHtml(String(name))}</div>`
-                                : ""
-                            }
-                </div>
-            `;
-
-                        const icon = L.divIcon({
-                            className: "geoapify-poi-wrapper",
-                            html: markerHtml,
-                            iconSize: [150, 32],
-                            iconAnchor: [10, 16],
-                            popupAnchor: [0, -14],
-                        });
-
-                        L.marker([lat, lng], { icon })
-                            .addTo(poiLayer)
-                            .bindPopup(`
-                    <div style="font-family: Arial, sans-serif; font-size: 13px; max-width: 260px;">
-                        <strong>${escapeHtml(String(name))}</strong><br/>
-                        <span>${escapeHtml(String(categoryName))}</span><br/>
-                        ${address ? `<span>${escapeHtml(String(address))}</span><br/>` : ""}
+            polygon.addListener("click", (event: google.maps.MapMouseEvent) => {
+                infoWindow.setContent(`
+                    <div style="font-family: Arial, sans-serif; font-size: 13px; max-width: 280px;">
+                        <strong>Batas RW Dummy</strong><br/>
+                        Provinsi: Kepulauan Riau<br/>
+                        Kota: Batam<br/>
+                        Kecamatan: ${area.kecamatan}<br/>
+                        Kelurahan: ${area.kelurahan}<br/>
+                        RW: ${area.rw}
                     </div>
                 `);
-                    });
-                } catch (error) {
-                    console.warn("Gagal memuat tempat dari Geoapify:", error);
+
+                if (event.latLng) {
+                    infoWindow.setPosition(event.latLng);
+                    infoWindow.open(map);
                 }
-            };
+            });
 
-            const scheduleLoadPlaces = () => {
-                if (poiTimer) clearTimeout(poiTimer);
-                poiTimer = setTimeout(loadGeoapifyPlaces, 800);
-            };
+            const label = new window.google.maps.Marker({
+                position: area.labelPosition,
+                map: null,
+                clickable: false,
+                icon: {
+                    path: window.google.maps.SymbolPath.CIRCLE,
+                    scale: 0,
+                },
+                label: {
+                    text: area.rw,
+                    color: "#6d28d9",
+                    fontSize: "12px",
+                    fontWeight: "800",
+                },
+                zIndex: 60,
+            });
 
-            map.on("moveend", scheduleLoadPlaces);
-            map.on("zoomend", scheduleLoadPlaces);
+            rwPolygonsRef.current.push(polygon);
+            rwLabelsRef.current.push(label);
+        });
 
-            setTimeout(() => {
-                map.invalidateSize();
-                loadGeoapifyPlaces();
-            }, 300);
+        rtAreas.forEach((area) => {
+            const polygon = new window.google.maps.Polygon({
+                paths: area.paths,
+                strokeColor: "#fbc02d",
+                strokeOpacity: 1,
+                strokeWeight: 2,
+                fillColor: "#fbc02d",
+                fillOpacity: 0.16,
+                clickable: true,
+                zIndex: 30,
+                map,
+            });
 
-            if (mounted) setReady(true);
+            polygon.addListener("click", (event: google.maps.MapMouseEvent) => {
+                infoWindow.setContent(`
+                    <div style="font-family: Arial, sans-serif; font-size: 13px; max-width: 280px;">
+                        <strong>Batas RT Dummy</strong><br/>
+                        Provinsi: Kepulauan Riau<br/>
+                        Kota: Batam<br/>
+                        Kecamatan: ${area.kecamatan}<br/>
+                        Kelurahan: ${area.kelurahan}<br/>
+                        RW: ${area.rw}<br/>
+                        RT: ${area.rt}
+                    </div>
+                `);
+
+                if (event.latLng) {
+                    infoWindow.setPosition(event.latLng);
+                    infoWindow.open(map);
+                }
+            });
+
+            const label = new window.google.maps.Marker({
+                position: area.labelPosition,
+                map: null,
+                clickable: false,
+                icon: {
+                    path: window.google.maps.SymbolPath.CIRCLE,
+                    scale: 0,
+                },
+                label: {
+                    text: area.rt,
+                    color: "#92400e",
+                    fontSize: "12px",
+                    fontWeight: "900",
+                },
+                zIndex: 70,
+            });
+
+            rtPolygonsRef.current.push(polygon);
+            rtLabelsRef.current.push(label);
+        });
+
+        rtrwVisibleRef.current = true;
+        fitToKotaBatamDummy();
+        applyLabelVisibility();
+    };
+
+    useEffect(() => {
+        const initMap = () => {
+            if (!window.google || !mapRef.current) return;
+
+            const kotaBatamBounds = new window.google.maps.LatLngBounds(
+                { lat: 0.82, lng: 103.78 },
+                { lat: 1.25, lng: 104.28 }
+            );
+
+            const map = new window.google.maps.Map(mapRef.current, {
+                center: { lat: 1.1185, lng: 104.053 },
+                zoom: 11,
+                minZoom: 7,
+                maxZoom: 20,
+                mapTypeId: "roadmap",
+                mapTypeControl: false,
+                streetViewControl: false,
+                fullscreenControl: false,
+                zoomControl: false,
+                gestureHandling: "greedy",
+                clickableIcons: true,
+            });
+
+            map.fitBounds(kotaBatamBounds);
+            mapInstanceRef.current = map;
+
+            infoWindowRef.current = new window.google.maps.InfoWindow();
+
+            map.addListener("zoom_changed", applyLabelVisibility);
+
+            if (requestedRtrwVisibleRef.current) {
+                showRTRWLayer();
+            }
         };
 
-        initMap();
-
-        return () => {
-            mounted = false;
-
-            if (poiTimer) clearTimeout(poiTimer);
-
-            if (mapInstanceRef.current) {
-                mapInstanceRef.current.remove();
-                mapInstanceRef.current = null;
+        const loadGoogleMaps = () => {
+            if (window.google?.maps) {
+                initMap();
+                return;
             }
 
-            poiLayerRef.current = null;
-            userMarkerRef.current = null;
+            const existingScript = document.getElementById(
+                "google-maps-script"
+            ) as HTMLScriptElement | null;
+
+            if (existingScript) {
+                existingScript.addEventListener("load", initMap);
+                return;
+            }
+
+            const script = document.createElement("script");
+            script.id = "google-maps-script";
+            script.src = `https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`;
+            script.async = true;
+            script.defer = true;
+            script.addEventListener("load", initMap);
+            document.body.appendChild(script);
+        };
+
+        const handleLayerToggle = (event: Event) => {
+            const customEvent = event as CustomEvent<{
+                layer: string;
+                visible: boolean;
+            }>;
+
+            if (customEvent.detail.layer !== "rtrw") return;
+
+            requestedRtrwVisibleRef.current = customEvent.detail.visible;
+
+            if (customEvent.detail.visible) {
+                showRTRWLayer();
+            } else {
+                clearRTRWLayer();
+            }
+        };
+
+        window.addEventListener("layer-toggle", handleLayerToggle);
+        loadGoogleMaps();
+
+        return () => {
+            window.removeEventListener("layer-toggle", handleLayerToggle);
+
+            const existingScript = document.getElementById("google-maps-script");
+            if (existingScript) {
+                existingScript.removeEventListener("load", initMap);
+            }
+
+            clearRTRWLayer();
         };
     }, []);
 
     const handleZoomIn = () => {
         const map = mapInstanceRef.current;
         if (!map) return;
-        map.setZoom(map.getZoom() + 1);
+        map.setZoom((map.getZoom() || 11) + 1);
     };
 
     const handleZoomOut = () => {
         const map = mapInstanceRef.current;
         if (!map) return;
-        map.setZoom(map.getZoom() - 1);
+        map.setZoom((map.getZoom() || 11) - 1);
     };
 
     const handleResetView = () => {
-        mapInstanceRef.current?.fitBounds(JABAR_BOUNDS);
+        const map = mapInstanceRef.current;
+        if (!map) return;
+
+        const kotaBatamBounds = new window.google.maps.LatLngBounds(
+            { lat: 0.82, lng: 103.78 },
+            { lat: 1.25, lng: 104.28 }
+        );
+
+        map.fitBounds(kotaBatamBounds);
     };
 
-    const handleMyLocation = async () => {
+    const handleMyLocation = () => {
         const map = mapInstanceRef.current;
         if (!map || !navigator.geolocation) return;
 
-        const L = (await import("leaflet")).default;
-
         navigator.geolocation.getCurrentPosition(
-            (pos) => {
-                const { latitude: lat, longitude: lng } = pos.coords;
+            (position) => {
+                const currentPos = {
+                    lat: position.coords.latitude,
+                    lng: position.coords.longitude,
+                };
 
-                map.setView([lat, lng], 17);
+                map.panTo(currentPos);
+                map.setZoom(16);
 
-                if (userMarkerRef.current) {
-                    map.removeLayer(userMarkerRef.current);
-                    userMarkerRef.current = null;
-                }
-
-                const marker = L.marker([lat, lng])
-                    .addTo(map)
-                    .bindPopup("Lokasi Anda")
-                    .openPopup();
-
-                userMarkerRef.current = marker;
+                new window.google.maps.Marker({
+                    position: currentPos,
+                    map,
+                    title: "Lokasi Anda",
+                });
             },
-            () => alert("Lokasi tidak dapat diakses.")
+            (error) => {
+                console.error("Gagal mengambil lokasi:", error);
+                alert("Lokasi tidak dapat diakses.");
+            }
         );
     };
 
@@ -326,88 +695,12 @@ export default function MapArea() {
         }
     };
 
-    const handlePan = async (dir: "up" | "down" | "left" | "right") => {
-        const map = mapInstanceRef.current;
-        if (!map) return;
-
-        const L = (await import("leaflet")).default;
-        const amount = 150;
-        const center = map.getCenter();
-        const point = map.latLngToContainerPoint(center);
-
-        const newPoint = L.point(
-            point.x + (dir === "right" ? amount : dir === "left" ? -amount : 0),
-            point.y + (dir === "down" ? amount : dir === "up" ? -amount : 0),
-        );
-
-        map.panTo(map.containerPointToLatLng(newPoint), { animate: true });
-    };
-
     return (
-        <main className="map-area" style={{ position: "relative", overflow: "hidden" }}>
-            <style jsx global>{`
-    .geoapify-poi-wrapper {
-        background: transparent;
-        border: none;
-    }
+        <main className="map-area">
+            <div ref={mapRef} className="map-ph" />
 
-    .geoapify-poi-marker {
-        display: flex;
-        align-items: center;
-        gap: 5px;
-        pointer-events: auto;
-    }
-
-    .geoapify-poi-dot {
-        width: 13px;
-        height: 13px;
-        min-width: 13px;
-        border-radius: 50%;
-        background: var(--poi-color);
-        border: 2px solid #ffffff;
-        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
-    }
-
-    .geoapify-poi-name {
-        max-width: 110px;
-        padding: 3px 6px;
-        border-radius: 6px;
-        background: rgba(255, 255, 255, 0.96);
-        color: #222;
-        font-size: 11px;
-        font-weight: 600;
-        line-height: 1.2;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        border: 1px solid rgba(0, 0, 0, 0.12);
-        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
-    }
-`}</style>
-
-            <div ref={mapRef} style={{ position: "absolute", inset: 0, zIndex: 0 }} />
-
-            {!ready && (
-                <div style={{
-                    position: "absolute",
-                    inset: 0,
-                    zIndex: 10,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    background: "#e8edf3",
-                }}>
-                    <span style={{ fontSize: 14, color: "#a0aec0" }}>
-                        Memuat peta...
-                    </span>
-                </div>
-            )}
-
-            <div
-                className="map-controls-right"
-                style={{ zIndex: 1000, pointerEvents: "none" }}
-            >
-                <button className="map-btn" style={{ pointerEvents: "all" }} onClick={handleFullscreen} title="Fullscreen" type="button">
+            <div className="map-controls-right">
+                <button className="map-btn" onClick={handleFullscreen} title="Fullscreen" type="button">
                     <svg viewBox="0 0 24 24">
                         <polyline points="15 3 21 3 21 9" />
                         <polyline points="9 21 3 21 3 15" />
@@ -416,7 +709,7 @@ export default function MapArea() {
                     </svg>
                 </button>
 
-                <button className="map-btn" style={{ pointerEvents: "all" }} onClick={handleResetView} title="Reset View" type="button">
+                <button className="map-btn" onClick={handleResetView} title="Reset View" type="button">
                     <svg viewBox="0 0 24 24">
                         <rect x="3" y="3" width="7" height="7" rx="1" />
                         <rect x="14" y="3" width="7" height="7" rx="1" />
@@ -425,11 +718,15 @@ export default function MapArea() {
                     </svg>
                 </button>
 
-                <button className="map-btn" style={{ pointerEvents: "all" }} onClick={handleZoomIn} title="Zoom In" type="button">+</button>
+                <button className="map-btn" onClick={handleZoomIn} title="Zoom In" type="button">
+                    +
+                </button>
 
-                <button className="map-btn" style={{ pointerEvents: "all" }} onClick={handleZoomOut} title="Zoom Out" type="button">−</button>
+                <button className="map-btn" onClick={handleZoomOut} title="Zoom Out" type="button">
+                    −
+                </button>
 
-                <button className="map-btn" style={{ pointerEvents: "all" }} onClick={handleMyLocation} title="Lokasi Saya" type="button">
+                <button className="map-btn" onClick={handleMyLocation} title="Lokasi Saya" type="button">
                     <svg viewBox="0 0 24 24">
                         <circle cx="12" cy="12" r="3" />
                         <line x1="12" y1="2" x2="12" y2="7" />
@@ -439,7 +736,7 @@ export default function MapArea() {
                     </svg>
                 </button>
 
-                <button className="map-btn" style={{ pointerEvents: "all" }} title="Layer" type="button">
+                <button className="map-btn" title="Layer" type="button">
                     <svg viewBox="0 0 24 24">
                         <line x1="4" y1="12" x2="20" y2="12" />
                         <line x1="8" y1="7" x2="8" y2="9" />
@@ -448,14 +745,14 @@ export default function MapArea() {
                     </svg>
                 </button>
 
-                <button className="map-btn" style={{ pointerEvents: "all" }} title="Checklist" type="button">
+                <button className="map-btn" title="Checklist" type="button">
                     <svg viewBox="0 0 24 24">
                         <polyline points="9 11 12 14 22 4" />
                         <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
                     </svg>
                 </button>
 
-                <button className="map-btn" style={{ pointerEvents: "all" }} title="Riwayat" type="button">
+                <button className="map-btn" title="Riwayat" type="button">
                     <svg viewBox="0 0 24 24">
                         <polyline points="12 6 12 12 16 14" />
                         <circle cx="12" cy="12" r="9" />
@@ -463,49 +760,12 @@ export default function MapArea() {
                 </button>
             </div>
 
-            <div style={{
-                position: "absolute",
-                bottom: 40,
-                right: 14,
-                zIndex: 1000,
-                display: "grid",
-                gridTemplateColumns: "repeat(3, 34px)",
-                gridTemplateRows: "repeat(3, 34px)",
-                gap: 3,
-            }}>
-                <div />
-                <button className="map-btn" onClick={() => handlePan("up")} title="Pan Up" type="button">
-                    <svg viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15" /></svg>
-                </button>
-                <div />
-
-                <button className="map-btn" onClick={() => handlePan("left")} title="Pan Left" type="button">
-                    <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
-                </button>
-
-                <button className="map-btn" onClick={handleResetView} title="Reset" type="button">
-                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" fill="#555" /></svg>
-                </button>
-
-                <button className="map-btn" onClick={() => handlePan("right")} title="Pan Right" type="button">
-                    <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
-                </button>
-
-                <div />
-                <button className="map-btn" onClick={() => handlePan("down")} title="Pan Down" type="button">
-                    <svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9" /></svg>
-                </button>
-                <div />
-            </div>
-
-            <div className="map-scale" style={{ zIndex: 1000 }}>
+            <div className="map-scale">
                 <span>400 km</span>
                 <div className="scale-bar" />
             </div>
 
-            <div className="map-credit" style={{ zIndex: 1000 }}>
-                ©2021 Developed by Braga Technologies
-            </div>
+            <div className="map-credit">©2021 Developed by Braga Technologies</div>
         </main>
     );
 }

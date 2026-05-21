@@ -13,8 +13,21 @@ export default function Sidebar({ collapsed, mobileOpen, onMobileClose }: Sideba
     const [openAccs, setOpenAccs] = useState<Record<string, boolean>>({});
 
     const toggleEye = (key: string) => {
-        setEyeStates(prev => ({ ...prev, [key]: !prev[key] }));
-    };
+    setEyeStates(prev => {
+        const nextValue = !prev[key];
+
+        window.dispatchEvent(
+            new CustomEvent("layer-toggle", {
+                detail: {
+                    layer: key,
+                    visible: nextValue,
+                },
+            })
+        );
+
+        return { ...prev, [key]: nextValue };
+    });
+};
 
     const toggleAcc = (key: string) => {
         setOpenAccs(prev => ({ ...prev, [key]: !prev[key] }));
