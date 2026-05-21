@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { Map as LeafletMap } from "leaflet";
+import type { LayerGroup, Map as LeafletMap, Marker } from "leaflet";
 
 export default function MapArea() {
     const mapRef = useRef<HTMLDivElement | null>(null);
     const mapInstanceRef = useRef<LeafletMap | null>(null);
+    const poiLayerRef = useRef<LayerGroup | null>(null);
+    const userMarkerRef = useRef<Marker | null>(null);
     const [ready, setReady] = useState(false);
 
     const JABAR_BOUNDS: [[number, number], [number, number]] = [
@@ -18,11 +20,11 @@ export default function MapArea() {
         if (mapInstanceRef.current) return;
 
         let mounted = true;
+        let poiTimer: ReturnType<typeof setTimeout> | null = null;
 
         const initMap = async () => {
             const L = (await import("leaflet")).default;
 
-            // Inject Leaflet CSS sekali saja
             if (!document.querySelector('link[href*="leaflet@1.9.4"]')) {
                 const link = document.createElement("link");
                 link.rel = "stylesheet";
@@ -45,11 +47,12 @@ export default function MapArea() {
                 center: [-6.90389, 107.61861],
                 zoom: 8,
                 minZoom: 7,
-                maxZoom: 18,
+                maxZoom: 19,
                 zoomControl: false,
                 attributionControl: true,
             });
 
+            // Tampilan map lama tetap dipakai
             L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
                 attribution: "© OpenStreetMap contributors",
                 maxZoom: 19,
@@ -58,6 +61,196 @@ export default function MapArea() {
             map.fitBounds(JABAR_BOUNDS);
             mapInstanceRef.current = map;
 
+            const poiLayer = L.layerGroup().addTo(map);
+            poiLayerRef.current = poiLayer;
+
+            const escapeHtml = (value: string) => {
+                return value
+                    .replaceAll("&", "&amp;")
+                    .replaceAll("<", "&lt;")
+                    .replaceAll(">", "&gt;")
+                    .replaceAll('"', "&quot;")
+                    .replaceAll("'", "&#039;");
+            };
+
+            const getCategoryName = (categories: string[] = []) => {
+                const joined = categories.join(" ");
+
+                if (joined.includes("religion.place_of_worship.islam")) return "Masjid / Musala";
+                if (joined.includes("religion.place_of_worship")) return "Tempat Ibadah";
+                if (joined.includes("building.place_of_worship")) return "Tempat Ibadah";
+                if (joined.includes("religion")) return "Tempat Ibadah";
+
+                if (joined.includes("commercial")) return "Toko / Komersial";
+                if (joined.includes("catering")) return "Makanan / Minuman";
+                if (joined.includes("service")) return "Jasa / Layanan";
+                if (joined.includes("healthcare")) return "Kesehatan";
+                if (joined.includes("education")) return "Pendidikan";
+                if (joined.includes("tourism")) return "Wisata";
+                if (joined.includes("entertainment")) return "Hiburan";
+                if (joined.includes("office")) return "Kantor";
+                if (joined.includes("leisure")) return "Area Publik";
+                if (joined.includes("public_transport")) return "Transportasi";
+                if (joined.includes("amenity")) return "Fasilitas Umum";
+
+                return "Tempat";
+            };
+
+            const getMarkerColor = (categories: string[] = []) => {
+                const joined = categories.join(" ");
+
+                if (joined.includes("religion")) return "#6d4c41";
+                if (joined.includes("building.place_of_worship")) return "#6d4c41";
+                if (joined.includes("commercial")) return "#e53935";
+                if (joined.includes("catering")) return "#fb8c00";
+                if (joined.includes("service")) return "#8e24aa";
+                if (joined.includes("healthcare")) return "#d81b60";
+                if (joined.includes("education")) return "#3949ab";
+                if (joined.includes("tourism")) return "#43a047";
+                if (joined.includes("entertainment")) return "#00acc1";
+                if (joined.includes("office")) return "#546e7a";
+                if (joined.includes("public_transport")) return "#00897b";
+
+                return "#1976d2";
+            };
+
+            const loadGeoapifyPlaces = async () => {
+                if (!mapInstanceRef.current || !poiLayerRef.current) return;
+
+                const zoom = map.getZoom();
+
+                // Jangan load saat level provinsi/kabupaten, terlalu luas dan boros.
+                if (zoom < 15) {
+                    poiLayer.clearLayers();
+                    return;
+                }
+
+                const bounds = map.getBounds();
+
+                const south = bounds.getSouth();
+                const west = bounds.getWest();
+                const north = bounds.getNorth();
+                const east = bounds.getEast();
+
+                const midLat = (south + north) / 2;
+                const midLng = (west + east) / 2;
+
+                // Bagi layar menjadi 4 kotak supaya data lebih merata, bukan cuma dekat tengah.
+                const cells = [
+                    { south: midLat, west, north, east: midLng },
+                    { south: midLat, west: midLng, north, east },
+                    { south, west, north: midLat, east: midLng },
+                    { south, west: midLng, north: midLat, east },
+                ];
+
+                try {
+                    const results = await Promise.all(
+                        cells.map((cell) =>
+                            fetch(
+                                `/api/geoapify-places?south=${cell.south}&west=${cell.west}&north=${cell.north}&east=${cell.east}`
+                            )
+                                .then((res) => {
+                                    if (!res.ok) return null;
+                                    return res.json();
+                                })
+                                .catch(() => null)
+                        )
+                    );
+
+                    const seen = new Set<string>();
+                    const features: any[] = [];
+
+                    results.forEach((data) => {
+                        if (!data?.features) return;
+
+                        data.features.forEach((feature: any) => {
+                            const id =
+                                feature.properties?.place_id ??
+                                `${feature.geometry?.coordinates?.[0]}-${feature.geometry?.coordinates?.[1]}`;
+
+                            if (!seen.has(id)) {
+                                seen.add(id);
+                                features.push(feature);
+                            }
+                        });
+                    });
+
+                    console.log("Jumlah tempat dari Geoapify:", features.length);
+
+                    poiLayer.clearLayers();
+
+                    features.forEach((feature: any) => {
+                        const coordinates = feature.geometry?.coordinates;
+                        const properties = feature.properties ?? {};
+
+                        if (!coordinates || coordinates.length < 2) return;
+
+                        const lng = coordinates[0];
+                        const lat = coordinates[1];
+
+                        const categories: string[] = properties.categories ?? [];
+
+                        const name =
+                            properties.name ??
+                            properties.address_line1 ??
+                            properties.formatted ??
+                            "Tempat";
+
+                        const categoryName = getCategoryName(categories);
+                        const color = getMarkerColor(categories);
+
+                        const address =
+                            properties.formatted ??
+                            [properties.street, properties.housenumber, properties.city]
+                                .filter(Boolean)
+                                .join(" ");
+
+                        const markerHtml = `
+                <div class="geoapify-poi-marker" style="--poi-color:${color}">
+                    <div class="geoapify-poi-dot"></div>
+                    ${zoom >= 16
+                                ? `<div class="geoapify-poi-name">${escapeHtml(String(name))}</div>`
+                                : ""
+                            }
+                </div>
+            `;
+
+                        const icon = L.divIcon({
+                            className: "geoapify-poi-wrapper",
+                            html: markerHtml,
+                            iconSize: [150, 32],
+                            iconAnchor: [10, 16],
+                            popupAnchor: [0, -14],
+                        });
+
+                        L.marker([lat, lng], { icon })
+                            .addTo(poiLayer)
+                            .bindPopup(`
+                    <div style="font-family: Arial, sans-serif; font-size: 13px; max-width: 260px;">
+                        <strong>${escapeHtml(String(name))}</strong><br/>
+                        <span>${escapeHtml(String(categoryName))}</span><br/>
+                        ${address ? `<span>${escapeHtml(String(address))}</span><br/>` : ""}
+                    </div>
+                `);
+                    });
+                } catch (error) {
+                    console.warn("Gagal memuat tempat dari Geoapify:", error);
+                }
+            };
+
+            const scheduleLoadPlaces = () => {
+                if (poiTimer) clearTimeout(poiTimer);
+                poiTimer = setTimeout(loadGeoapifyPlaces, 800);
+            };
+
+            map.on("moveend", scheduleLoadPlaces);
+            map.on("zoomend", scheduleLoadPlaces);
+
+            setTimeout(() => {
+                map.invalidateSize();
+                loadGeoapifyPlaces();
+            }, 300);
+
             if (mounted) setReady(true);
         };
 
@@ -65,15 +258,18 @@ export default function MapArea() {
 
         return () => {
             mounted = false;
+
+            if (poiTimer) clearTimeout(poiTimer);
+
             if (mapInstanceRef.current) {
                 mapInstanceRef.current.remove();
                 mapInstanceRef.current = null;
             }
-        };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
 
-    // ── Handlers ────────────────────────────────────────────────────
+            poiLayerRef.current = null;
+            userMarkerRef.current = null;
+        };
+    }, []);
 
     const handleZoomIn = () => {
         const map = mapInstanceRef.current;
@@ -94,15 +290,26 @@ export default function MapArea() {
     const handleMyLocation = async () => {
         const map = mapInstanceRef.current;
         if (!map || !navigator.geolocation) return;
+
         const L = (await import("leaflet")).default;
+
         navigator.geolocation.getCurrentPosition(
             (pos) => {
                 const { latitude: lat, longitude: lng } = pos.coords;
-                map.setView([lat, lng], 14);
-                L.marker([lat, lng])
+
+                map.setView([lat, lng], 17);
+
+                if (userMarkerRef.current) {
+                    map.removeLayer(userMarkerRef.current);
+                    userMarkerRef.current = null;
+                }
+
+                const marker = L.marker([lat, lng])
                     .addTo(map)
                     .bindPopup("Lokasi Anda")
                     .openPopup();
+
+                userMarkerRef.current = marker;
             },
             () => alert("Lokasi tidak dapat diakses.")
         );
@@ -111,6 +318,7 @@ export default function MapArea() {
     const handleFullscreen = () => {
         const el = mapRef.current?.parentElement;
         if (!el) return;
+
         if (!document.fullscreenElement) {
             el.requestFullscreen?.();
         } else {
@@ -119,39 +327,82 @@ export default function MapArea() {
     };
 
     const handlePan = async (dir: "up" | "down" | "left" | "right") => {
-    const map = mapInstanceRef.current;
-    if (!map) return;
-    const L = (await import("leaflet")).default; // tambah import L
-    const amount = 150;
-    const center = map.getCenter();
-    const point = map.latLngToContainerPoint(center);
-    const newPoint = L.point(  // ← pakai L.point() bukan plain object
-        point.x + (dir === "right" ? amount : dir === "left" ? -amount : 0),
-        point.y + (dir === "down" ? amount : dir === "up" ? -amount : 0),
-    );
-    map.panTo(map.containerPointToLatLng(newPoint), { animate: true });
-};
+        const map = mapInstanceRef.current;
+        if (!map) return;
 
-    // ── Render ───────────────────────────────────────────────────────
+        const L = (await import("leaflet")).default;
+        const amount = 150;
+        const center = map.getCenter();
+        const point = map.latLngToContainerPoint(center);
+
+        const newPoint = L.point(
+            point.x + (dir === "right" ? amount : dir === "left" ? -amount : 0),
+            point.y + (dir === "down" ? amount : dir === "up" ? -amount : 0),
+        );
+
+        map.panTo(map.containerPointToLatLng(newPoint), { animate: true });
+    };
 
     return (
         <main className="map-area" style={{ position: "relative", overflow: "hidden" }}>
+            <style jsx global>{`
+    .geoapify-poi-wrapper {
+        background: transparent;
+        border: none;
+    }
 
-            {/* Map mount point */}
+    .geoapify-poi-marker {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        pointer-events: auto;
+    }
+
+    .geoapify-poi-dot {
+        width: 13px;
+        height: 13px;
+        min-width: 13px;
+        border-radius: 50%;
+        background: var(--poi-color);
+        border: 2px solid #ffffff;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+    }
+
+    .geoapify-poi-name {
+        max-width: 110px;
+        padding: 3px 6px;
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.96);
+        color: #222;
+        font-size: 11px;
+        font-weight: 600;
+        line-height: 1.2;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        border: 1px solid rgba(0, 0, 0, 0.12);
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+    }
+`}</style>
+
             <div ref={mapRef} style={{ position: "absolute", inset: 0, zIndex: 0 }} />
 
-            {/* Loading overlay */}
             {!ready && (
                 <div style={{
-                    position: "absolute", inset: 0, zIndex: 10,
-                    display: "flex", alignItems: "center", justifyContent: "center",
+                    position: "absolute",
+                    inset: 0,
+                    zIndex: 10,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
                     background: "#e8edf3",
                 }}>
-                    <span style={{ fontSize: 14, color: "#a0aec0" }}>Memuat peta...</span>
+                    <span style={{ fontSize: 14, color: "#a0aec0" }}>
+                        Memuat peta...
+                    </span>
                 </div>
             )}
 
-            {/* Tombol kanan — semua 7 button */}
             <div
                 className="map-controls-right"
                 style={{ zIndex: 1000, pointerEvents: "none" }}
@@ -212,7 +463,6 @@ export default function MapArea() {
                 </button>
             </div>
 
-            {/* Navigation Pad — pojok kanan bawah */}
             <div style={{
                 position: "absolute",
                 bottom: 40,
@@ -223,25 +473,24 @@ export default function MapArea() {
                 gridTemplateRows: "repeat(3, 34px)",
                 gap: 3,
             }}>
-                {/* Row 1 */}
                 <div />
                 <button className="map-btn" onClick={() => handlePan("up")} title="Pan Up" type="button">
                     <svg viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15" /></svg>
                 </button>
                 <div />
 
-                {/* Row 2 */}
                 <button className="map-btn" onClick={() => handlePan("left")} title="Pan Left" type="button">
                     <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
                 </button>
+
                 <button className="map-btn" onClick={handleResetView} title="Reset" type="button">
                     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" fill="#555" /></svg>
                 </button>
+
                 <button className="map-btn" onClick={() => handlePan("right")} title="Pan Right" type="button">
                     <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
                 </button>
 
-                {/* Row 3 */}
                 <div />
                 <button className="map-btn" onClick={() => handlePan("down")} title="Pan Down" type="button">
                     <svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9" /></svg>
@@ -249,17 +498,14 @@ export default function MapArea() {
                 <div />
             </div>
 
-            {/* Scale */}
             <div className="map-scale" style={{ zIndex: 1000 }}>
                 <span>400 km</span>
                 <div className="scale-bar" />
             </div>
 
-            {/* Credit */}
             <div className="map-credit" style={{ zIndex: 1000 }}>
                 ©2021 Developed by Braga Technologies
             </div>
-
         </main>
     );
 }
