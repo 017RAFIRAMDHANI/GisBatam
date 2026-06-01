@@ -40,6 +40,64 @@ type RtArea = {
     labelPosition: LatLng;
 };
 
+type LocalSearchItem = {
+    name: string;
+    type: "Kecamatan" | "Kelurahan" | "Lokasi";
+    lat: number;
+    lng: number;
+    kecamatan?: string;
+    kelurahan?: string;
+    kabupatenKota?: string;
+    provinsi?: string;
+    aliases?: string[];
+};
+
+type NominatimAddress = {
+    neighbourhood?: string;
+    suburb?: string;
+    village?: string;
+    hamlet?: string;
+    quarter?: string;
+    city_district?: string;
+    district?: string;
+    subdistrict?: string;
+    town?: string;
+    city?: string;
+    municipality?: string;
+    county?: string;
+    state?: string;
+    province?: string;
+    region?: string;
+    country?: string;
+};
+
+type NominatimResult = {
+    display_name: string;
+    lat: string;
+    lon: string;
+    boundingbox?: string[];
+    type?: string;
+    class?: string;
+    address?: NominatimAddress;
+};
+
+type SearchPopupData = {
+    title: string;
+    kategori: string;
+    alamat?: string;
+    kelurahan: string;
+    kecamatan: string;
+    kabupatenKota: string;
+    provinsi: string;
+    lat: number;
+    lng: number;
+    sumber: "Data Lokal" | "OpenStreetMap";
+};
+
+const DEFAULT_ADMIN = {
+    kabupatenKota: "Kota Batam",
+    provinsi: "Kepulauan Riau",
+};
 
 const KECAMATAN_BATAM: KecamatanGroup[] = [
     {
@@ -189,6 +247,74 @@ function escapeHtml(value: string) {
         .replaceAll("'", "&#039;");
 }
 
+function normalizeText(value: string) {
+    return value
+        .toLowerCase()
+        .trim()
+        .replaceAll(".", "")
+        .replaceAll(",", "")
+        .replace(/\s+/g, " ");
+}
+
+function safeValue(value?: string) {
+    const clean = value?.trim();
+    return clean && clean.length > 0 ? clean : "-";
+}
+
+function buildSearchPopupContent(data: SearchPopupData) {
+    const alamatSection = data.alamat
+        ? `
+            <div style="margin-top: 6px; color: #4b5563; line-height: 1.35;">
+                ${escapeHtml(data.alamat)}
+            </div>
+        `
+        : "";
+
+    return `
+        <div style="font-family: Arial, sans-serif; font-size: 13px; max-width: 300px; color: #111827;">
+            <strong style="font-size: 14px;">${escapeHtml(data.title)}</strong><br/>
+            <span style="color: #4b5563;">${escapeHtml(data.kategori)}</span>
+
+            ${alamatSection}
+
+            <div style="height: 1px; background: #e5e7eb; margin: 8px 0;"></div>
+
+            <table style="border-collapse: collapse; width: 100%; font-size: 13px;">
+                <tbody>
+                    <tr>
+                        <td style="padding: 2px 8px 2px 0; color: #6b7280;">Kelurahan</td>
+                        <td style="padding: 2px 0; font-weight: 600;">${escapeHtml(data.kelurahan)}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 2px 8px 2px 0; color: #6b7280;">Kecamatan</td>
+                        <td style="padding: 2px 0; font-weight: 600;">${escapeHtml(data.kecamatan)}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 2px 8px 2px 0; color: #6b7280;">Kabupaten/Kota</td>
+                        <td style="padding: 2px 0; font-weight: 600;">${escapeHtml(data.kabupatenKota)}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 2px 8px 2px 0; color: #6b7280;">Provinsi</td>
+                        <td style="padding: 2px 0; font-weight: 600;">${escapeHtml(data.provinsi)}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 2px 8px 2px 0; color: #6b7280;">Latitude</td>
+                        <td style="padding: 2px 0; font-weight: 600;">${data.lat.toFixed(6)}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 2px 8px 2px 0; color: #6b7280;">Longitude</td>
+                        <td style="padding: 2px 0; font-weight: 600;">${data.lng.toFixed(6)}</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div style="margin-top: 8px; font-size: 11px; color: #6b7280;">
+                Sumber: ${escapeHtml(data.sumber)}
+            </div>
+        </div>
+    `;
+}
+
 function createKelurahanSeeds(): KelurahanSeed[] {
     const result: KelurahanSeed[] = [];
 
@@ -212,6 +338,153 @@ function createKelurahanSeeds(): KelurahanSeed[] {
 }
 
 const KELURAHAN_BATAM_SEEDS = createKelurahanSeeds();
+
+const LOCAL_SEARCH_ITEMS: LocalSearchItem[] = [
+    ...KECAMATAN_BATAM.map((item) => ({
+        name: item.kecamatan,
+        type: "Kecamatan" as const,
+        lat: item.center.lat,
+        lng: item.center.lng,
+        kecamatan: item.kecamatan,
+        kelurahan: "-",
+        kabupatenKota: DEFAULT_ADMIN.kabupatenKota,
+        provinsi: DEFAULT_ADMIN.provinsi,
+        aliases: [`Kecamatan ${item.kecamatan}`, `${item.kecamatan} Batam`],
+    })),
+
+    ...KELURAHAN_BATAM_SEEDS.map((item) => ({
+        name: item.kelurahan,
+        type: "Kelurahan" as const,
+        lat: item.lat,
+        lng: item.lng,
+        kecamatan: item.kecamatan,
+        kelurahan: item.kelurahan,
+        kabupatenKota: DEFAULT_ADMIN.kabupatenKota,
+        provinsi: DEFAULT_ADMIN.provinsi,
+        aliases: [
+            `Kelurahan ${item.kelurahan}`,
+            `${item.kelurahan} Batam`,
+            `${item.kelurahan}, ${item.kecamatan}`,
+        ],
+    })),
+
+    {
+        name: "Batam Center",
+        type: "Lokasi",
+        lat: 1.1185,
+        lng: 104.053,
+        kecamatan: "Batam Kota",
+        kelurahan: "Teluk Tering",
+        kabupatenKota: DEFAULT_ADMIN.kabupatenKota,
+        provinsi: DEFAULT_ADMIN.provinsi,
+        aliases: ["Batam Centre", "Pusat Kota Batam", "Batam Kota"],
+    },
+    {
+        name: "Nagoya Batam",
+        type: "Lokasi",
+        lat: 1.1457,
+        lng: 104.0106,
+        kecamatan: "Lubuk Baja",
+        kelurahan: "Lubuk Baja Kota",
+        kabupatenKota: DEFAULT_ADMIN.kabupatenKota,
+        provinsi: DEFAULT_ADMIN.provinsi,
+        aliases: ["Nagoya", "Nagoya Hill", "Nagoya Hill Batam"],
+    },
+    {
+        name: "Sekupang Batam",
+        type: "Lokasi",
+        lat: 1.115,
+        lng: 103.94,
+        kecamatan: "Sekupang",
+        kelurahan: "-",
+        kabupatenKota: DEFAULT_ADMIN.kabupatenKota,
+        provinsi: DEFAULT_ADMIN.provinsi,
+        aliases: ["Sekupang"],
+    },
+    {
+        name: "Batu Aji Batam",
+        type: "Lokasi",
+        lat: 1.041,
+        lng: 103.969,
+        kecamatan: "Batu Aji",
+        kelurahan: "-",
+        kabupatenKota: DEFAULT_ADMIN.kabupatenKota,
+        provinsi: DEFAULT_ADMIN.provinsi,
+        aliases: ["Batu Aji"],
+    },
+    {
+        name: "Nongsa Batam",
+        type: "Lokasi",
+        lat: 1.191,
+        lng: 104.095,
+        kecamatan: "Nongsa",
+        kelurahan: "-",
+        kabupatenKota: DEFAULT_ADMIN.kabupatenKota,
+        provinsi: DEFAULT_ADMIN.provinsi,
+        aliases: ["Nongsa"],
+    },
+];
+
+function findLocalSearchItem(query: string) {
+    const normalizedQuery = normalizeText(query);
+
+    if (!normalizedQuery) return null;
+
+    const exact = LOCAL_SEARCH_ITEMS.find((item) => {
+        const names = [item.name, ...(item.aliases ?? [])].map(normalizeText);
+        return names.includes(normalizedQuery);
+    });
+
+    if (exact) return exact;
+
+    const contains = LOCAL_SEARCH_ITEMS.find((item) => {
+        const names = [item.name, ...(item.aliases ?? [])].map(normalizeText);
+
+        return names.some((name) => {
+            return name.includes(normalizedQuery) || normalizedQuery.includes(name);
+        });
+    });
+
+    return contains ?? null;
+}
+
+function getNominatimAdministrative(result: NominatimResult) {
+    const address = result.address ?? {};
+
+    const kelurahan =
+        address.village ||
+        address.suburb ||
+        address.neighbourhood ||
+        address.quarter ||
+        address.hamlet ||
+        "-";
+
+    const kecamatan =
+        address.city_district ||
+        address.district ||
+        address.subdistrict ||
+        "-";
+
+    const kabupatenKota =
+        address.city ||
+        address.town ||
+        address.municipality ||
+        address.county ||
+        DEFAULT_ADMIN.kabupatenKota;
+
+    const provinsi =
+        address.state ||
+        address.province ||
+        address.region ||
+        DEFAULT_ADMIN.provinsi;
+
+    return {
+        kelurahan: safeValue(kelurahan),
+        kecamatan: safeValue(kecamatan),
+        kabupatenKota: safeValue(kabupatenKota),
+        provinsi: safeValue(provinsi),
+    };
+}
 
 function createRect(center: LatLng, halfLat: number, halfLng: number): LatLng[] {
     return [
@@ -362,6 +635,10 @@ export default function MapArea() {
     const kelurahanLabelLayerRef = useRef<LayerGroup | null>(null);
 
     const userMarkerRef = useRef<Marker | null>(null);
+    const searchMarkerRef = useRef<Marker | null>(null);
+    const searchAbortRef = useRef<AbortController | null>(null);
+    const pendingSearchQueryRef = useRef<string | null>(null);
+
     const [ready, setReady] = useState(false);
 
     const rtrwVisibleRef = useRef(false);
@@ -384,6 +661,205 @@ export default function MapArea() {
             iconSize: [120, 26],
             iconAnchor: [60, 13],
         });
+    };
+
+    const notifySearchStatus = (
+        message: string,
+        type: "info" | "success" | "error" = "info"
+    ) => {
+        window.dispatchEvent(
+            new CustomEvent("map-location-search-status", {
+                detail: {
+                    message,
+                    type,
+                },
+            })
+        );
+    };
+
+    const clearSearchMarker = () => {
+        const map = mapInstanceRef.current;
+
+        if (map && searchMarkerRef.current) {
+            map.removeLayer(searchMarkerRef.current);
+        }
+
+        searchMarkerRef.current = null;
+    };
+
+    const addSearchMarker = (data: SearchPopupData) => {
+        const map = mapInstanceRef.current;
+        const L = leafletRef.current;
+
+        if (!map || !L) return;
+
+        clearSearchMarker();
+
+        const marker = L.marker([data.lat, data.lng])
+            .addTo(map)
+            .bindPopup(buildSearchPopupContent(data))
+            .openPopup();
+
+        searchMarkerRef.current = marker;
+    };
+
+    const searchLocationOnMap = async (query: string) => {
+        const map = mapInstanceRef.current;
+        const L = leafletRef.current;
+        const cleanQuery = query.trim();
+
+        if (!cleanQuery) {
+            notifySearchStatus("Masukkan nama lokasi terlebih dahulu.", "error");
+            return;
+        }
+
+        if (!map || !L) {
+            pendingSearchQueryRef.current = cleanQuery;
+            notifySearchStatus("Peta belum siap. Coba lagi sebentar.", "info");
+            return;
+        }
+
+        const localResult = findLocalSearchItem(cleanQuery);
+
+        if (localResult) {
+            map.setView([localResult.lat, localResult.lng], 15, {
+                animate: true,
+            });
+
+            addSearchMarker({
+                title: localResult.name,
+                kategori: localResult.type,
+                kelurahan: safeValue(localResult.kelurahan),
+                kecamatan: safeValue(localResult.kecamatan),
+                kabupatenKota: safeValue(localResult.kabupatenKota ?? DEFAULT_ADMIN.kabupatenKota),
+                provinsi: safeValue(localResult.provinsi ?? DEFAULT_ADMIN.provinsi),
+                lat: localResult.lat,
+                lng: localResult.lng,
+                sumber: "Data Lokal",
+            });
+
+            notifySearchStatus(`Ditemukan dari data lokal: ${localResult.name}`, "success");
+            return;
+        }
+
+        searchAbortRef.current?.abort();
+
+        const controller = new AbortController();
+        searchAbortRef.current = controller;
+
+        notifySearchStatus("Mencari lokasi dari OpenStreetMap...", "info");
+
+        try {
+            const searchText = /batam/i.test(cleanQuery)
+                ? cleanQuery
+                : `${cleanQuery}, Batam, Kepulauan Riau, Indonesia`;
+
+            const params = new URLSearchParams({
+                q: searchText,
+                format: "jsonv2",
+                addressdetails: "1",
+                limit: "5",
+                countrycodes: "id",
+                "accept-language": "id",
+                viewbox: "103.78,1.25,104.28,0.82",
+                bounded: "0",
+            });
+
+            const response = await fetch(
+                `https://nominatim.openstreetmap.org/search?${params.toString()}`,
+                {
+                    method: "GET",
+                    signal: controller.signal,
+                    headers: {
+                        Accept: "application/json",
+                    },
+                }
+            );
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            const results = (await response.json()) as NominatimResult[];
+
+            if (!Array.isArray(results) || results.length === 0) {
+                clearSearchMarker();
+                notifySearchStatus("Lokasi tidak ditemukan.", "error");
+                alert("Lokasi tidak ditemukan. Coba kata kunci lain.");
+                return;
+            }
+
+            const selected = results[0];
+            const lat = Number(selected.lat);
+            const lng = Number(selected.lon);
+
+            if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+                clearSearchMarker();
+                notifySearchStatus("Koordinat lokasi tidak valid.", "error");
+                alert("Koordinat lokasi tidak valid.");
+                return;
+            }
+
+            const admin = getNominatimAdministrative(selected);
+            const bounds = selected.boundingbox;
+
+            if (Array.isArray(bounds) && bounds.length >= 4) {
+                const south = Number(bounds[0]);
+                const north = Number(bounds[1]);
+                const west = Number(bounds[2]);
+                const east = Number(bounds[3]);
+
+                if (
+                    Number.isFinite(south) &&
+                    Number.isFinite(north) &&
+                    Number.isFinite(west) &&
+                    Number.isFinite(east)
+                ) {
+                    map.fitBounds(
+                        [
+                            [south, west],
+                            [north, east],
+                        ],
+                        {
+                            padding: [40, 40],
+                            maxZoom: 17,
+                        }
+                    );
+                } else {
+                    map.setView([lat, lng], 16, {
+                        animate: true,
+                    });
+                }
+            } else {
+                map.setView([lat, lng], 16, {
+                    animate: true,
+                });
+            }
+
+            addSearchMarker({
+                title: "Hasil Pencarian Lokasi",
+                kategori: selected.type ? `Lokasi ${selected.type}` : "Lokasi",
+                alamat: selected.display_name,
+                kelurahan: admin.kelurahan,
+                kecamatan: admin.kecamatan,
+                kabupatenKota: admin.kabupatenKota,
+                provinsi: admin.provinsi,
+                lat,
+                lng,
+                sumber: "OpenStreetMap",
+            });
+
+            notifySearchStatus(`Ditemukan: ${selected.display_name}`, "success");
+        } catch (error) {
+            if (error instanceof DOMException && error.name === "AbortError") {
+                return;
+            }
+
+            console.error("Gagal mencari lokasi:", error);
+            clearSearchMarker();
+            notifySearchStatus("Gagal mencari lokasi. Coba lagi.", "error");
+            alert("Gagal mencari lokasi. Coba lagi.");
+        }
     };
 
     const clearRTRWLayer = () => {
@@ -522,7 +998,7 @@ export default function MapArea() {
                     <div style="font-family: Arial, sans-serif; font-size: 13px; max-width: 280px;">
                         <strong>Batas RW Dummy</strong><br/>
                         Provinsi: Kepulauan Riau<br/>
-                        Kota: Batam<br/>
+                        Kabupaten/Kota: Kota Batam<br/>
                         Kecamatan: ${escapeHtml(area.kecamatan)}<br/>
                         Kelurahan: ${escapeHtml(area.kelurahan)}<br/>
                         RW: ${escapeHtml(area.rw)}
@@ -550,7 +1026,7 @@ export default function MapArea() {
                     <div style="font-family: Arial, sans-serif; font-size: 13px; max-width: 280px;">
                         <strong>Batas RT Dummy</strong><br/>
                         Provinsi: Kepulauan Riau<br/>
-                        Kota: Batam<br/>
+                        Kabupaten/Kota: Kota Batam<br/>
                         Kecamatan: ${escapeHtml(area.kecamatan)}<br/>
                         Kelurahan: ${escapeHtml(area.kelurahan)}<br/>
                         RW: ${escapeHtml(area.rw)}<br/>
@@ -593,8 +1069,6 @@ export default function MapArea() {
 
             if (!mounted || !mapRef.current) return;
 
-            // Fix icon default di Next.js
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             delete (L.Icon.Default.prototype as any)._getIconUrl;
             L.Icon.Default.mergeOptions({
                 iconRetinaUrl:
@@ -637,6 +1111,12 @@ export default function MapArea() {
                 if (requestedRtrwVisibleRef.current) {
                     showRTRWLayer();
                 }
+
+                if (pendingSearchQueryRef.current) {
+                    const pendingQuery = pendingSearchQueryRef.current;
+                    pendingSearchQueryRef.current = null;
+                    void searchLocationOnMap(pendingQuery);
+                }
             }, 300);
 
             if (mounted) setReady(true);
@@ -659,15 +1139,42 @@ export default function MapArea() {
             }
         };
 
+        const handleLocationSearch = (event: Event) => {
+            const customEvent = event as CustomEvent<{
+                query: string;
+            }>;
+
+            void searchLocationOnMap(customEvent.detail.query);
+        };
+
+        const handleLocationClear = () => {
+            const map = mapInstanceRef.current;
+
+            clearSearchMarker();
+            notifySearchStatus("", "info");
+
+            if (map) {
+                map.closePopup();
+            }
+        };
+
         window.addEventListener("layer-toggle", handleLayerToggle);
+        window.addEventListener("map-location-search", handleLocationSearch);
+        window.addEventListener("map-location-clear", handleLocationClear);
+
         initMap();
 
         return () => {
             mounted = false;
 
             window.removeEventListener("layer-toggle", handleLayerToggle);
+            window.removeEventListener("map-location-search", handleLocationSearch);
+            window.removeEventListener("map-location-clear", handleLocationClear);
+
+            searchAbortRef.current?.abort();
 
             clearRTRWLayer();
+            clearSearchMarker();
 
             if (mapInstanceRef.current) {
                 mapInstanceRef.current.remove();
@@ -680,6 +1187,7 @@ export default function MapArea() {
             rtLabelLayerRef.current = null;
             kelurahanLabelLayerRef.current = null;
             userMarkerRef.current = null;
+            searchMarkerRef.current = null;
         };
     }, []);
 
@@ -755,7 +1263,7 @@ export default function MapArea() {
 
         const newPoint = L.point(
             point.x + (dir === "right" ? amount : dir === "left" ? -amount : 0),
-            point.y + (dir === "down" ? amount : dir === "up" ? -amount : 0),
+            point.y + (dir === "down" ? amount : dir === "up" ? -amount : 0)
         );
 
         map.panTo(map.containerPointToLatLng(newPoint), { animate: true });

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 
 interface SidebarProps {
     collapsed: boolean;
@@ -9,28 +9,92 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ collapsed, mobileOpen, onMobileClose }: SidebarProps) {
-    const [eyeStates, setEyeStates] = useState<Record<string, boolean>>({ poligon: false, rtrw: false });
+    const [eyeStates, setEyeStates] = useState<Record<string, boolean>>({
+        poligon: false,
+        rtrw: false,
+    });
+
     const [openAccs, setOpenAccs] = useState<Record<string, boolean>>({});
+    const [locationKeyword, setLocationKeyword] = useState('');
+    const [searchStatus, setSearchStatus] = useState('');
+
+    useEffect(() => {
+        const handleSearchStatus = (event: Event) => {
+            const customEvent = event as CustomEvent<{
+                message: string;
+                type: 'info' | 'success' | 'error';
+            }>;
+
+            setSearchStatus(customEvent.detail.message);
+        };
+
+        window.addEventListener('map-location-search-status', handleSearchStatus);
+
+        return () => {
+            window.removeEventListener('map-location-search-status', handleSearchStatus);
+        };
+    }, []);
 
     const toggleEye = (key: string) => {
-    setEyeStates(prev => {
-        const nextValue = !prev[key];
+        setEyeStates((prev) => {
+            const nextValue = !prev[key];
+
+            window.dispatchEvent(
+                new CustomEvent('layer-toggle', {
+                    detail: {
+                        layer: key,
+                        visible: nextValue,
+                    },
+                })
+            );
+
+            return {
+                ...prev,
+                [key]: nextValue,
+            };
+        });
+    };
+
+    const toggleAcc = (key: string) => {
+        setOpenAccs((prev) => ({
+            ...prev,
+            [key]: !prev[key],
+        }));
+    };
+
+    const dispatchLocationSearch = (keyword: string) => {
+        const query = keyword.trim();
+
+        if (!query) {
+            setSearchStatus('Masukkan nama lokasi terlebih dahulu.');
+            return;
+        }
+
+        setSearchStatus('Mencari lokasi...');
 
         window.dispatchEvent(
-            new CustomEvent("layer-toggle", {
+            new CustomEvent('map-location-search', {
                 detail: {
-                    layer: key,
-                    visible: nextValue,
+                    query,
                 },
             })
         );
 
-        return { ...prev, [key]: nextValue };
-    });
-};
+        if (mobileOpen) {
+            onMobileClose();
+        }
+    };
 
-    const toggleAcc = (key: string) => {
-        setOpenAccs(prev => ({ ...prev, [key]: !prev[key] }));
+    const handleLocationSubmit = (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        dispatchLocationSearch(locationKeyword);
+    };
+
+    const handleClearLocationSearch = () => {
+        setLocationKeyword('');
+        setSearchStatus('');
+
+        window.dispatchEvent(new CustomEvent('map-location-clear'));
     };
 
     const EyeOpen = () => (
@@ -55,7 +119,6 @@ export default function Sidebar({ collapsed, mobileOpen, onMobileClose }: Sideba
 
     return (
         <>
-            {/* Mobile overlay */}
             <div
                 className={`nav-overlay sidebar-overlay${mobileOpen ? ' show' : ''}`}
                 style={{ display: mobileOpen ? 'block' : 'none' }}
@@ -63,8 +126,6 @@ export default function Sidebar({ collapsed, mobileOpen, onMobileClose }: Sideba
             />
 
             <aside className={sidebarClass} id="sidebar">
-
-                {/* Info Card */}
                 <div className="info-card">
                     <div className="info-card-hd">
                         <svg viewBox="0 0 24 24">
@@ -74,16 +135,25 @@ export default function Sidebar({ collapsed, mobileOpen, onMobileClose }: Sideba
                         </svg>
                         Informasi Aset Daerah
                     </div>
+
                     <div className="asset-row">
                         <div className="a-icon">
-                            <svg viewBox="0 0 24 24"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21" /></svg>
+                            <svg viewBox="0 0 24 24">
+                                <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21" />
+                            </svg>
                         </div>
                         <span className="a-label">Aset Tanah</span>
                         <span className="a-count">400</span>
                     </div>
+
                     <div className="asset-row">
                         <div className="a-icon">
-                            <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg>
+                            <svg viewBox="0 0 24 24">
+                                <rect x="3" y="3" width="7" height="7" rx="1" />
+                                <rect x="14" y="3" width="7" height="7" rx="1" />
+                                <rect x="3" y="14" width="7" height="7" rx="1" />
+                                <rect x="14" y="14" width="7" height="7" rx="1" />
+                            </svg>
                         </div>
                         <span className="a-label">Aset Lainnya</span>
                         <span className="a-count">200</span>
@@ -92,7 +162,6 @@ export default function Sidebar({ collapsed, mobileOpen, onMobileClose }: Sideba
 
                 <hr className="hr-navbar" />
 
-                {/* Layer Management */}
                 <div className="sec-title">
                     <svg viewBox="0 0 24 24">
                         <polygon points="12 2 2 7 12 12 22 7" />
@@ -103,76 +172,99 @@ export default function Sidebar({ collapsed, mobileOpen, onMobileClose }: Sideba
                 </div>
 
                 <div className="layer-list">
-
-                    {/* Poligon Aset */}
                     <div className="layer-item">
                         <div className="layer-hd">
                             <span>Poligon Aset</span>
                             <div className="hd-right">
-                                <div className="i-btn" onClick={() => toggleEye('poligon')}>
+                                <button
+                                    className="i-btn"
+                                    onClick={() => toggleEye('poligon')}
+                                    type="button"
+                                    aria-label="Toggle Poligon Aset"
+                                >
                                     {eyeStates.poligon ? <EyeOpen /> : <EyeClosed />}
-                                </div>
+                                </button>
                             </div>
                         </div>
                     </div>
 
-                    {/* Rencana Pola Ruang RTRW */}
                     <div className="layer-item">
                         <div className="layer-hd">
                             <span>Rencana Pola Ruang RTRW</span>
                             <div className="hd-right">
-                                <div className="i-btn" onClick={() => toggleEye('rtrw')}>
+                                <button
+                                    className="i-btn"
+                                    onClick={() => toggleEye('rtrw')}
+                                    type="button"
+                                    aria-label="Toggle Rencana Pola Ruang RTRW"
+                                >
                                     {eyeStates.rtrw ? <EyeOpen /> : <EyeClosed />}
-                                </div>
+                                </button>
                             </div>
                         </div>
                     </div>
 
-                    {/* Aset Terdekat */}
                     <div className={`layer-item${openAccs.terdekat ? ' open' : ''}`}>
-                        <div className="layer-hd clickable" onClick={() => toggleAcc('terdekat')}>
+                        <div
+                            className="layer-hd clickable"
+                            onClick={() => toggleAcc('terdekat')}
+                        >
                             <span>Aset Terdekat</span>
                             <div className="hd-right">
                                 <div className="i-btn chevron">
-                                    <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
+                                    <svg viewBox="0 0 24 24">
+                                        <polyline points="9 18 15 12 9 6" />
+                                    </svg>
                                 </div>
                             </div>
                         </div>
+
                         <div className="acc-body">
                             <div className="acc-inner">
                                 <div className="acc-empty">Belum ada data aset terdekat</div>
-                                <div className="acc-opt">
-                                    <svg viewBox="0 0 24 24"><circle cx="12" cy="10" r="3" /><path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 14 8 14s8-8.75 8-14a8 8 0 0 0-8-8z" /></svg>
-                                    Radius 500m
-                                </div>
-                                <div className="acc-opt">
-                                    <svg viewBox="0 0 24 24"><circle cx="12" cy="10" r="3" /><path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 14 8 14s8-8.75 8-14a8 8 0 0 0-8-8z" /></svg>
-                                    Radius 1km
-                                </div>
-                                <div className="acc-opt">
-                                    <svg viewBox="0 0 24 24"><circle cx="12" cy="10" r="3" /><path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 14 8 14s8-8.75 8-14a8 8 0 0 0-8-8z" /></svg>
-                                    Radius 5km
-                                </div>
+
+                                {['Radius 500m', 'Radius 1km', 'Radius 5km'].map((label) => (
+                                    <div key={label} className="acc-opt">
+                                        <svg viewBox="0 0 24 24">
+                                            <circle cx="12" cy="10" r="3" />
+                                            <path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 14 8 14s8-8.75 8-14a8 8 0 0 0-8-8z" />
+                                        </svg>
+                                        {label}
+                                    </div>
+                                ))}
                             </div>
                         </div>
                     </div>
 
-                    {/* Filter Data */}
                     <div className={`layer-item${openAccs.filter ? ' open' : ''}`}>
-                        <div className="layer-hd clickable" onClick={() => toggleAcc('filter')}>
+                        <div
+                            className="layer-hd clickable"
+                            onClick={() => toggleAcc('filter')}
+                        >
                             <span>Filter Data</span>
                             <div className="hd-right">
                                 <div className="i-btn chevron">
-                                    <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
+                                    <svg viewBox="0 0 24 24">
+                                        <polyline points="9 18 15 12 9 6" />
+                                    </svg>
                                 </div>
                             </div>
                         </div>
+
                         <div className="acc-body">
                             <div className="acc-inner">
                                 <div className="acc-empty">Belum ada filter yang tersedia</div>
-                                {['Filter Kategori', 'Filter Tahun', 'Filter Status', 'Filter Wilayah'].map(label => (
+
+                                {[
+                                    'Filter Kategori',
+                                    'Filter Tahun',
+                                    'Filter Status',
+                                    'Filter Wilayah',
+                                ].map((label) => (
                                     <div key={label} className="acc-opt">
-                                        <svg viewBox="0 0 24 24"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" /></svg>
+                                        <svg viewBox="0 0 24 24">
+                                            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+                                        </svg>
                                         {label}
                                     </div>
                                 ))}
@@ -180,29 +272,85 @@ export default function Sidebar({ collapsed, mobileOpen, onMobileClose }: Sideba
                         </div>
                     </div>
 
-                    {/* Cari Data */}
                     <div className={`layer-item${openAccs.cari ? ' open' : ''}`}>
-                        <div className="layer-hd clickable" onClick={() => toggleAcc('cari')}>
+                        <div
+                            className="layer-hd clickable"
+                            onClick={() => toggleAcc('cari')}
+                        >
                             <span>Cari Data</span>
                             <div className="hd-right">
                                 <div className="i-btn chevron">
-                                    <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
+                                    <svg viewBox="0 0 24 24">
+                                        <polyline points="9 18 15 12 9 6" />
+                                    </svg>
                                 </div>
                             </div>
                         </div>
+
                         <div className="acc-body">
                             <div className="acc-inner">
-                                <div className="acc-empty">Masukkan kata kunci untuk mencari</div>
-                                {['Cari Berdasarkan Nama', 'Cari Berdasarkan Kode', 'Cari Berdasarkan Lokasi'].map(label => (
-                                    <div key={label} className="acc-opt">
-                                        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-                                        {label}
+                                <form className="map-search-form" onSubmit={handleLocationSubmit}>
+                                    <label className="map-search-label">Cari lokasi</label>
+
+                                    <div className="map-search-box">
+                                        <svg viewBox="0 0 24 24">
+                                            <circle cx="11" cy="11" r="8" />
+                                            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                                        </svg>
+
+                                        <input
+                                            value={locationKeyword}
+                                            onChange={(event) => setLocationKeyword(event.target.value)}
+                                            placeholder="Contoh: Batam Center, Nagoya, Tiban"
+                                            className="map-search-input"
+                                        />
                                     </div>
-                                ))}
+
+                                    <div className="map-search-actions">
+                                        <button className="map-search-btn" type="submit">
+                                            Cari Lokasi
+                                        </button>
+
+                                        <button
+                                            className="map-search-clear"
+                                            type="button"
+                                            onClick={handleClearLocationSearch}
+                                        >
+                                            Reset
+                                        </button>
+                                    </div>
+
+                                    {searchStatus && (
+                                        <div className="map-search-status">
+                                            {searchStatus}
+                                        </div>
+                                    )}
+                                </form>
+
+                                <div className="map-search-chips">
+                                    {[
+                                        'Batam Center',
+                                        'Nagoya Batam',
+                                        'Sekupang Batam',
+                                        'Batu Aji Batam',
+                                        'Nongsa Batam',
+                                    ].map((label) => (
+                                        <button
+                                            key={label}
+                                            type="button"
+                                            className="map-search-chip"
+                                            onClick={() => {
+                                                setLocationKeyword(label);
+                                                dispatchLocationSearch(label);
+                                            }}
+                                        >
+                                            {label}
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
                         </div>
                     </div>
-
                 </div>
             </aside>
         </>
