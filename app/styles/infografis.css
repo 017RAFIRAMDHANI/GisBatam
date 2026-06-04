@@ -1,9 +1,11 @@
 .ig-container {
   padding: 24px 32px;
   width: 100%;
+  max-width: 100%;
   box-sizing: border-box;
   background: #f8fafc;
   min-height: 100%;
+  overflow-x: hidden;
   font-family: "Inter", sans-serif;
   color: #2d3748;
 }
@@ -212,7 +214,8 @@
   position: relative;
   background: #ffffff;
   transition: border-color 0.2s, box-shadow 0.2s;
-  height: 52px;
+  height: auto;
+  min-height: 52px;
   box-sizing: border-box;
 }
 
@@ -229,15 +232,37 @@
   margin-bottom: 2px;
 }
 
+.ig-filter-field {
+  position: relative;
+}
+
 .ig-filter-select {
-  position: absolute;
-  top: 0;
-  left: 0;
+  position: static;
+  opacity: 1;
   width: 100%;
-  height: 100%;
-  opacity: 0;
+  padding-right: 24px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #334155;
+  border: none;
+  outline: none;
+  background: transparent;
+  appearance: none;
   cursor: pointer;
-  z-index: 2;
+  z-index: 1;
+}
+
+.ig-filter-chevron {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  width: 16px;
+  height: 16px;
+  stroke: #94a3b8;
+  fill: none;
+  stroke-width: 2.5;
 }
 
 .ig-filter-display {
@@ -247,19 +272,6 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-}
-
-.ig-filter-input svg {
-  position: absolute;
-  right: 16px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 16px;
-  height: 16px;
-  stroke: #94a3b8;
-  fill: none;
-  stroke-width: 2.5;
-  pointer-events: none;
 }
 
 /* Wide row cards */
@@ -574,4 +586,289 @@
   width: 12px;
   height: 12px;
   border-radius: 50%;
+}
+
+/* Donut chart (Grafik Status Pelanggaran) */
+.ig-donut-wrap {
+  width: 160px;
+  height: 160px;
+  flex-shrink: 0;
+}
+
+.ig-donut-pct-overlay {
+  margin-top: -88px;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.ig-donut-pct-label {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.ig-bar-chart-wrap {
+  width: 100%;
+  height: 320px;
+}
+
+.ig-inner-val--compact {
+  font-size: 18px !important;
+}
+
+.ig-empty-state {
+  text-align: center;
+  padding: 40px 0;
+  color: #94a3b8;
+  font-size: 14px;
+}
+
+/* ── MOBILE RESPONSIVE ──────────────────────────────── */
+@media (max-width: 1024px) {
+  .ig-container {
+    padding: 20px 20px;
+  }
+
+  .ig-cards-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ig-filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ig-wide-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .ig-container {
+    padding: 16px 14px;
+  }
+
+  .ig-row {
+    margin-bottom: 14px;
+  }
+
+  .ig-header-card {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    padding: 14px 16px;
+  }
+
+  .ig-title-area {
+    flex-wrap: wrap;
+  }
+
+  .ig-btn-download {
+    justify-content: center;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .ig-cards-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .ig-card {
+    padding: 14px;
+    gap: 12px;
+    min-width: 0;
+  }
+
+  .ig-card-icon-box {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+  }
+
+  .ig-card-icon-box svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  .ig-card-val-big {
+    font-size: 24px;
+  }
+
+  .ig-sub-stats {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .ig-sub-val {
+    font-size: 16px;
+  }
+
+  .ig-filter-card {
+    padding: 16px;
+  }
+
+  .ig-filter-hd {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .ig-filter-actions {
+    width: 100%;
+  }
+
+  .ig-btn-apply,
+  .ig-btn-reset {
+    flex: 1;
+    text-align: center;
+  }
+
+  .ig-filter-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .ig-box-card {
+    padding: 16px;
+  }
+
+  .ig-luas-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .ig-inner-card {
+    padding: 16px;
+  }
+
+  .ig-inner-val {
+    font-size: 20px;
+    word-break: break-word;
+  }
+
+  .ig-chart-flex {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 20px;
+  }
+
+  .ig-legend-grid {
+    gap: 16px;
+  }
+
+  .ig-donut-wrap {
+    align-self: center;
+  }
+
+  .ig-bot-legend {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .ig-bar-chart-wrap {
+    height: 280px;
+  }
+}
+
+@media (max-width: 480px) {
+  .ig-container {
+    padding: 12px 10px;
+  }
+
+  .ig-cards-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ig-page-title {
+    font-size: 16px;
+  }
+
+  .ig-btn-download {
+    font-size: 13px;
+    padding: 10px 12px;
+  }
+
+  .ig-card-val-big {
+    font-size: 22px;
+  }
+
+  .ig-legend-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .ig-leg-val-num {
+    font-size: 18px;
+  }
+
+  .ig-bot-val {
+    font-size: 26px;
+  }
+
+  .ig-bar-chart-wrap {
+    height: 260px;
+  }
+}
+
+/* ── PRINT / PDF STYLES ─────────────────────────────── */
+@media print {
+
+  /* Sembunyikan navbar/sidebar - pakai class spesifik AppShell */
+  .navbar, .nav-drawer, .sidebar,
+  .ig-btn-download,
+  .ig-filter-actions {
+    display: none !important;
+  }
+
+  body, html {
+    background: #ffffff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .ig-container {
+    padding: 8px 12px !important;
+    background: #ffffff !important;
+    width: 100% !important;
+  }
+
+  .ig-row {
+    margin-bottom: 10px !important;
+  }
+
+  .ig-card,
+  .ig-box-card,
+  .ig-filter-card,
+  .ig-header-card {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .ig-cards-grid {
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 8px !important;
+  }
+
+  .ig-wide-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+  }
+
+  .ig-filter-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 8px !important;
+  }
+
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  @page {
+    size: A4 landscape;
+    margin: 8mm 10mm;
+  }
 }

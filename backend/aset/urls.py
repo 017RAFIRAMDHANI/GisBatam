@@ -1,3 +1,8 @@
+# ============================================================
+# FILE: backend/aset/urls.py
+# GANTI SELURUH ISI FILE INI
+# ============================================================
+
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from . import views
@@ -13,4 +18,6 @@ router.register(r'foto', views.FotoReklameViewSet)
 
 urlpatterns = [
     path('', include(router.urls)),
+    # ── NEW: Infografis statistics ──
+    path('infografis/', views.infografis_stats, name='infografis-stats'),
 ]
