@@ -9,11 +9,6 @@ import { usePathname } from "next/navigation";
 
 interface AppShellProps {
     children: React.ReactNode;
-    /**
-     * Kalau true, area konten tidak punya padding dan overflow:hidden
-     * cocok untuk halaman peta yang butuh full-bleed.
-     * Default: false, ada padding, cocok untuk halaman tabel/form.
-     */
     fullBleed?: boolean;
 }
 
@@ -29,7 +24,8 @@ export default function AppShell({ children, fullBleed }: AppShellProps) {
 
     const hideSidebar =
         pathname.startsWith("/manajemen_reklame") ||
-        pathname.startsWith("/infografis");
+        pathname.startsWith("/infografis") ||
+        pathname.startsWith("/ubah_password");
 
     const toggleSidebar = useCallback(() => {
         const isMobile = window.innerWidth <= 768;
@@ -41,7 +37,9 @@ export default function AppShell({ children, fullBleed }: AppShellProps) {
         }
     }, []);
 
-    const closeMobileSidebar = useCallback(() => setMobileSidebarOpen(false), []);
+    const closeMobileSidebar = useCallback(() => {
+        setMobileSidebarOpen(false);
+    }, []);
 
     return (
         <>

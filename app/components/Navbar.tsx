@@ -142,18 +142,19 @@ export default function Navbar({ onDrawerOpen }: NavbarProps) {
               <polyline points="6 9 12 15 18 9" />
             </svg>
             <div className={`dropdown right${openDrop === 'user' ? ' show' : ''}`}>
-              <div className="dd-item">
+              {/* <div className="dd-item">
                 <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
                 Profil Saya
               </div>
               <div className="dd-item">
                 <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" /><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14" /></svg>
                 Pengaturan Akun
-              </div>
+              </div> */}
+                <a href="/ubah_password" className='ubahpw'>
               <div className="dd-item">
                 <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
                 Ubah Password
-              </div>
+              </div></a>
               <div className="dd-divider" />
               <button className='dd-item danger borde-none' onClick={async () => {
                 const result = await Swal.fire({
