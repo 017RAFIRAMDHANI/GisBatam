@@ -1408,28 +1408,28 @@ export default function MapArea() {
                     </svg>
                 </button>
 
-                <button className="map-btn" style={{ pointerEvents: "all" }} title="Layer" type="button">
+                {/* <button className="map-btn" style={{ pointerEvents: "all" }} title="Layer" type="button">
                     <svg viewBox="0 0 24 24">
                         <line x1="4" y1="12" x2="20" y2="12" />
                         <line x1="8" y1="7" x2="8" y2="9" />
                         <line x1="12" y1="5" x2="12" y2="8" />
                         <line x1="16" y1="7" x2="16" y2="9" />
                     </svg>
-                </button>
+                </button> */}
 
-                <button className="map-btn" style={{ pointerEvents: "all" }} title="Checklist" type="button">
+                {/* <button className="map-btn" style={{ pointerEvents: "all" }} title="Checklist" type="button">
                     <svg viewBox="0 0 24 24">
                         <polyline points="9 11 12 14 22 4" />
                         <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
                     </svg>
-                </button>
+                </button> */}
 
-                <button className="map-btn" style={{ pointerEvents: "all" }} title="Riwayat" type="button">
+                {/* <button className="map-btn" style={{ pointerEvents: "all" }} title="Riwayat" type="button">
                     <svg viewBox="0 0 24 24">
                         <polyline points="12 6 12 12 16 14" />
                         <circle cx="12" cy="12" r="9" />
                     </svg>
-                </button>
+                </button> */}
             </div>
 
             <div

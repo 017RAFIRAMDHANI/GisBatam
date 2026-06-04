@@ -204,7 +204,7 @@ export default function Sidebar({ collapsed, mobileOpen, onMobileClose }: Sideba
                         </div>
                     </div>
 
-                    <div className={`layer-item${openAccs.terdekat ? ' open' : ''}`}>
+                    {/* <div className={`layer-item${openAccs.terdekat ? ' open' : ''}`}>
                         <div
                             className="layer-hd clickable"
                             onClick={() => toggleAcc('terdekat')}
@@ -234,9 +234,9 @@ export default function Sidebar({ collapsed, mobileOpen, onMobileClose }: Sideba
                                 ))}
                             </div>
                         </div>
-                    </div>
+                    </div> */}
 
-                    <div className={`layer-item${openAccs.filter ? ' open' : ''}`}>
+                    {/* <div className={`layer-item${openAccs.filter ? ' open' : ''}`}>
                         <div
                             className="layer-hd clickable"
                             onClick={() => toggleAcc('filter')}
@@ -270,14 +270,14 @@ export default function Sidebar({ collapsed, mobileOpen, onMobileClose }: Sideba
                                 ))}
                             </div>
                         </div>
-                    </div>
+                    </div> */}
 
                     <div className={`layer-item${openAccs.cari ? ' open' : ''}`}>
                         <div
                             className="layer-hd clickable"
                             onClick={() => toggleAcc('cari')}
                         >
-                            <span>Cari Data</span>
+                            <span>Cari Lokasi</span>
                             <div className="hd-right">
                                 <div className="i-btn chevron">
                                     <svg viewBox="0 0 24 24">

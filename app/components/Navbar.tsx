@@ -74,12 +74,12 @@ export default function Navbar({ onDrawerOpen }: NavbarProps) {
             <div className={`dropdown${openDrop === 'aset' ? ' show' : ''}`}>
               <div className="dd-label">Modul Aset</div>
 
-              <Link className="dd-item" href="/manajemen_reklame" onClick={() => setOpenDrop(null)}>
+              <Link className="dd-item mreklame" href="/manajemen_reklame" onClick={() => setOpenDrop(null)}>
                 <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" /><line x1="3" y1="9" x2="21" y2="9" /><line x1="9" y1="21" x2="9" y2="9" /></svg>
                 Manajemen Reklame
               </Link>
 
-              <Link className="dd-item" href="/dokumen_aset" onClick={() => setOpenDrop(null)}>
+              {/* <Link className="dd-item" href="/dokumen_aset" onClick={() => setOpenDrop(null)}>
                 <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
                 Dokumen Aset
               </Link>
@@ -87,12 +87,12 @@ export default function Navbar({ onDrawerOpen }: NavbarProps) {
               <Link className="dd-item" href="/detail_aset" onClick={() => setOpenDrop(null)}>
                 <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
                 Detail Aset
-              </Link>
+              </Link> */}
 
               <div className="dd-divider" />
-              <div className="dd-label">Manajemen</div>
+              {/* <div className="dd-label">Manajemen</div> */}
 
-              <Link className="dd-item" href="/tambah_aset" onClick={() => setOpenDrop(null)}>
+              {/* <Link className="dd-item" href="/tambah_aset" onClick={() => setOpenDrop(null)}>
                 <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
                 Tambah Aset Baru
               </Link>
@@ -100,7 +100,7 @@ export default function Navbar({ onDrawerOpen }: NavbarProps) {
               <Link className="dd-item" href="/validasi_data" onClick={() => setOpenDrop(null)}>
                 <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /></svg>
                 Validasi Data
-              </Link>
+              </Link> */}
             </div>
           </div>
 
@@ -114,7 +114,7 @@ export default function Navbar({ onDrawerOpen }: NavbarProps) {
           </Link>
 
           {/* Laporan Aset */}
-          <Link className="nav-item" href="/laporan_aset">
+          {/* <Link className="nav-item" href="/laporan_aset">
             <svg className="n-icon" viewBox="0 0 24 24">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
               <polyline points="14 2 14 8 20 8" />
@@ -122,7 +122,7 @@ export default function Navbar({ onDrawerOpen }: NavbarProps) {
               <line x1="16" y1="17" x2="8" y2="17" />
             </svg>
             Laporan Aset
-          </Link>
+          </Link> */}
         </div>
 
         {/* Desktop user */}
