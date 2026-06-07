@@ -290,17 +290,21 @@ body {
        MOBILE NAV DRAWER
     ══════════════════════════════ */
 .nav-overlay {
-  display: none;
+  display: block;
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.4);
   z-index: 4000;
   opacity: 0;
+  pointer-events: none;
   transition: opacity 0.25s;
+  visibility: hidden;
 }
 
 .nav-overlay.show {
   opacity: 1;
+  pointer-events: auto;
+  visibility: visible;
 }
 
 .nav-drawer {
@@ -478,18 +482,57 @@ body {
 }
 
 .drawer-user {
-  margin-top: auto;
-  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
   padding: 14px 18px;
   display: flex;
   align-items: center;
   gap: 12px;
-  cursor: pointer;
-  transition: background 0.12s;
 }
 
-.drawer-user:hover {
+.drawer-user-actions {
+  margin-top: auto;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.drawer-action-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text-mid);
+  cursor: pointer;
+  transition: background 0.12s;
+  text-decoration: none;
+  width: 100%;
+  background: none;
+  border: none;
+  text-align: left;
+}
+
+.drawer-action-item:hover {
   background: var(--blue-light);
+  color: var(--blue);
+}
+
+.drawer-action-item svg {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  flex-shrink: 0;
+}
+
+.drawer-action-danger {
+  color: #e53e3e;
+}
+
+.drawer-action-danger:hover {
+  background: #fff5f5;
+  color: #e53e3e;
 }
 
 .drawer-user-info {
@@ -527,39 +570,8 @@ body {
   stroke-width: 1.8;
 }
 
-.drawer-user svg.du-arr {
-  width: 14px;
-  height: 14px;
-  stroke: var(--text-light);
-  fill: none;
-  stroke-width: 2;
-}
 
-.drawer-minimize {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 18px;
-  font-size: 13.5px;
-  font-weight: 500;
-  color: var(--text-mid);
-  cursor: pointer;
-  transition: background 0.12s;
-  border-top: 1px solid var(--border);
-}
 
-.drawer-minimize:hover {
-  background: var(--blue-light);
-  color: var(--blue);
-}
-
-.drawer-minimize svg {
-  width: 18px;
-  height: 18px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 1.8;
-}
 
 /* ══════════════════════════════
        LAYOUT
@@ -1013,6 +1025,14 @@ body {
        MOBILE RESPONSIVE
     ══════════════════════════════ */
 @media (max-width: 768px) {
+  :root {
+    --nav-h: 60px;
+  }
+
+  .navbar {
+    padding: 0 14px;
+  }
+
   .navbar-right-group {
     display: none !important;
   }
